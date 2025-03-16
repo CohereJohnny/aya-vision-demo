@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - AYA Vision Detection Demo{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h2 class="mb-0"><i class="fas fa-cog me-2"></i>Application Settings</h2>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('main.settings') }}">
+                    {{ form.hidden_tag() }}
+                    <div class="mb-4">
+                        <h4>Detection Configuration</h4>
+                        <p class="text-muted">
+                            Configure what the application will detect in images and how it will interact with the Cohere model.
+                        </p>
+                        
+                        <div class="mb-3">
+                            {{ form.subject.label(class="form-label fw-bold") }}
+                            {% if form.subject.errors %}
+                                {{ form.subject(class="form-control is-invalid") }}
+                                <div class="invalid-feedback">
+                                    {% for error in form.subject.errors %}
+                                        {{ error }}
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                {{ form.subject(class="form-control") }}
+                            {% endif %}
+                            <div class="form-text">
+                                The subject will be used throughout the application (e.g., "Flare Detected", "Buildings Detected").
+                                <br>
+                                This should match what you're asking the model to detect in your prompt.
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            {{ form.prompt.label(class="form-label fw-bold") }}
+                            {% if form.prompt.errors %}
+                                {{ form.prompt(class="form-control is-invalid") }}
+                                <div class="invalid-feedback">
+                                    {% for error in form.prompt.errors %}
+                                        {{ error }}
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                {{ form.prompt(class="form-control") }}
+                            {% endif %}
+                            <div class="form-text">
+                                The default prompt is: "Is a flare burning in this image? Answer with only 'true' or 'false'."
+                                <br>
+                                Your prompt should be clear and specific about what to look for in the images.
+                                <br>
+                                For binary classification tasks, ask the model to respond with "true" or "false" for consistent results.
+                            </div>
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <button type="button" class="btn btn-secondary" id="reset-button">
+                            <i class="fas fa-undo me-2"></i>Reset to Default
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-2"></i>Save Settings
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const resetButton = document.getElementById('reset-button');
+        const promptField = document.getElementById('prompt');
+        const subjectField = document.getElementById('subject');
+        const defaultPrompt = "Is a flare burning in this image? Answer with only 'true' or 'false'.";
+        const defaultSubject = "Flare";
+        
+        resetButton.addEventListener('click', function() {
+            promptField.value = defaultPrompt;
+            subjectField.value = defaultSubject;
+        });
+    });
+</script>
+{% endblock %} 

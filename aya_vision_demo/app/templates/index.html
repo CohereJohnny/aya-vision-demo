@@ -1,0 +1,312 @@
+{% extends "base.html" %}
+
+{% block title %}AYA Vision Detection Demo{% endblock %}
+
+{% block extra_css %}
+<style>
+    .dropzone {
+        border: 2px dashed #ccc;
+        border-radius: 5px;
+        padding: 60px 20px;
+        text-align: center;
+        background-color: #f8f9fa;
+        cursor: pointer;
+        transition: background-color 0.3s;
+    }
+    .dropzone:hover {
+        background-color: #e9ecef;
+    }
+    .dropzone.highlight {
+        border-color: #007bff;
+        background-color: #e9ecef;
+    }
+    .preview-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 20px;
+    }
+    .preview-item {
+        position: relative;
+        width: 100px;
+        height: 100px;
+    }
+    .preview-item img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        border-radius: 4px;
+    }
+    .preview-item .remove-btn {
+        position: absolute;
+        top: -8px;
+        right: -8px;
+        background-color: #dc3545;
+        color: white;
+        border-radius: 50%;
+        width: 20px;
+        height: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        cursor: pointer;
+    }
+    .file-count {
+        margin-top: 10px;
+        font-weight: bold;
+    }
+    .progress {
+        display: none;
+        margin-top: 20px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h2 class="mb-0"><i class="fas fa-eye me-2"></i>Vision Detection Demo</h2>
+            </div>
+            <div class="card-body">
+                <p class="lead">
+                    This demo showcases the capabilities of AYA Vision for detecting objects or features in images.
+                    Upload your images to analyze them for the presence of {{ subject }}.
+                </p>
+                
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>Current Detection Subject:</strong> {{ subject }}
+                    <a href="{{ url_for('main.settings') }}" class="ms-2 btn btn-sm btn-outline-primary">
+                        <i class="fas fa-cog me-1"></i>Change Settings
+                    </a>
+                </div>
+                
+                <form method="POST" enctype="multipart/form-data" action="{{ url_for('main.index') }}" id="upload-form">
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="mb-4">
+                        <div class="dropzone" id="dropzone">
+                            <i class="fas fa-cloud-upload-alt fa-3x mb-3"></i>
+                            <h4>Drag & Drop Images Here</h4>
+                            <p>or</p>
+                            <button type="button" class="btn btn-outline-primary" id="browse-btn">Browse Files</button>
+                            <input type="file" class="d-none" id="file-input" name="images" multiple accept="image/*">
+                        </div>
+                        
+                        <div class="file-count mt-3" id="file-count">0 files selected</div>
+                        
+                        <div class="preview-container" id="preview-container"></div>
+                    </div>
+                    
+                    <div class="progress">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-3">
+                        <button type="submit" class="btn btn-primary" id="upload-button">
+                            <i class="fas fa-upload me-2"></i>Upload and Analyze
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        {% if results %}
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h3 class="mb-0"><i class="fas fa-chart-bar me-2"></i>Analysis Summary</h3>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-3 mb-3">
+                        <div class="summary-item">
+                            <div class="summary-icon">
+                                <i class="fas fa-images"></i>
+                            </div>
+                            <div class="summary-value">{{ results|length }}</div>
+                            <div class="summary-label">Total Images</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="summary-item">
+                            <div class="summary-icon text-success">
+                                <i class="fas fa-check-circle"></i>
+                            </div>
+                            <div class="summary-value">{{ detected }}</div>
+                            <div class="summary-label">{{ subject }} Detected</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="summary-item">
+                            <div class="summary-icon text-danger">
+                                <i class="fas fa-times-circle"></i>
+                            </div>
+                            <div class="summary-value">{{ not_detected }}</div>
+                            <div class="summary-label">No {{ subject }} Detected</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="summary-item">
+                            <div class="summary-icon text-secondary">
+                                <i class="fas fa-question-circle"></i>
+                            </div>
+                            <div class="summary-value">{{ unknown }}</div>
+                            <div class="summary-label">Unknown</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="d-grid gap-2 d-md-flex justify-content-md-center mt-3">
+                    <a href="{{ url_for('main.results') }}" class="btn btn-primary">
+                        <i class="fas fa-th-large me-2"></i>View Detailed Results
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const dropzone = document.getElementById('dropzone');
+        const fileInput = document.getElementById('file-input');
+        const browseBtn = document.getElementById('browse-btn');
+        const previewContainer = document.getElementById('preview-container');
+        const fileCount = document.getElementById('file-count');
+        const form = document.getElementById('upload-form');
+        const uploadButton = document.getElementById('upload-button');
+        const progressBar = document.querySelector('.progress-bar');
+        const progress = document.querySelector('.progress');
+        
+        // Open file dialog when browse button is clicked
+        browseBtn.addEventListener('click', function() {
+            fileInput.click();
+        });
+        
+        // Handle file selection
+        fileInput.addEventListener('change', function() {
+            handleFiles(this.files);
+        });
+        
+        // Prevent default behavior for drag and drop
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropzone.addEventListener(eventName, preventDefaults, false);
+        });
+        
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        
+        // Highlight dropzone when dragging over it
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropzone.addEventListener(eventName, highlight, false);
+        });
+        
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropzone.addEventListener(eventName, unhighlight, false);
+        });
+        
+        function highlight() {
+            dropzone.classList.add('highlight');
+        }
+        
+        function unhighlight() {
+            dropzone.classList.remove('highlight');
+        }
+        
+        // Handle dropped files
+        dropzone.addEventListener('drop', function(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            handleFiles(files);
+        });
+        
+        // Process the files
+        function handleFiles(files) {
+            // Clear previous previews
+            previewContainer.innerHTML = '';
+            
+            // Update file count
+            fileCount.textContent = `${files.length} files selected`;
+            
+            // Create a new FileList to store the files
+            const dataTransfer = new DataTransfer();
+            
+            // Add files to the preview and to the dataTransfer
+            Array.from(files).forEach(file => {
+                // Check if the file is an image
+                if (!file.type.match('image.*')) {
+                    return;
+                }
+                
+                // Add to dataTransfer
+                dataTransfer.items.add(file);
+                
+                // Create preview
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const preview = document.createElement('div');
+                    preview.className = 'preview-item';
+                    preview.innerHTML = `
+                        <img src="${e.target.result}" alt="${file.name}">
+                        <div class="remove-btn" data-name="${file.name}">×</div>
+                    `;
+                    previewContainer.appendChild(preview);
+                    
+                    // Add event listener to remove button
+                    const removeBtn = preview.querySelector('.remove-btn');
+                    removeBtn.addEventListener('click', function() {
+                        const fileName = this.getAttribute('data-name');
+                        removeFile(fileName);
+                        preview.remove();
+                    });
+                };
+                reader.readAsDataURL(file);
+            });
+            
+            // Update the file input with the new FileList
+            fileInput.files = dataTransfer.files;
+        }
+        
+        // Remove a file from the FileList
+        function removeFile(fileName) {
+            const dt = new DataTransfer();
+            const files = fileInput.files;
+            
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                if (file.name !== fileName) {
+                    dt.items.add(file);
+                }
+            }
+            
+            fileInput.files = dt.files;
+            fileCount.textContent = `${fileInput.files.length} files selected`;
+        }
+        
+        // Show progress bar when form is submitted
+        form.addEventListener('submit', function() {
+            uploadButton.disabled = true;
+            uploadButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Uploading and Analyzing...';
+            
+            progress.style.display = 'block';
+            let width = 0;
+            const interval = setInterval(function() {
+                if (width >= 90) {
+                    clearInterval(interval);
+                } else {
+                    width += 1;
+                    progressBar.style.width = width + '%';
+                }
+            }, 100);
+        });
+    });
+</script>
+{% endblock %}

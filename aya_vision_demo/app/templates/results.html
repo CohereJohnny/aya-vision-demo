@@ -1,0 +1,681 @@
+{% extends "base.html" %}
+
+{% block title %}Analysis Results - AYA Vision Detection Demo{% endblock %}
+
+{% block extra_css %}
+<style>
+    .result-card {
+        transition: transform 0.2s;
+    }
+    .result-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+    }
+    .thumbnail {
+        width: 100%;
+        height: 150px;
+        object-fit: cover;
+        border-radius: 4px 4px 0 0;
+        cursor: pointer;
+    }
+    .result-true {
+        color: #28a745;
+    }
+    .result-false {
+        color: #dc3545;
+    }
+    .result-unknown {
+        color: #6c757d;
+    }
+    .summary-card {
+        margin-bottom: 30px;
+    }
+    .summary-item {
+        display: flex;
+        align-items: center;
+        margin-bottom: 10px;
+    }
+    .summary-icon {
+        font-size: 24px;
+        margin-right: 15px;
+    }
+    .delete-btn {
+        color: #dc3545;
+        cursor: pointer;
+        transition: color 0.2s;
+    }
+    .delete-btn:hover {
+        color: #bd2130;
+    }
+    .card-actions {
+        display: flex;
+        justify-content: flex-end;
+        margin-top: 10px;
+    }
+    .image-removed {
+        opacity: 0;
+        height: 0;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        transition: all 0.5s ease;
+    }
+    .full-image-modal-content {
+        max-width: 90%;
+        margin: 0 auto;
+    }
+    .full-image {
+        max-width: 100%;
+        max-height: 80vh;
+        display: block;
+        margin: 0 auto;
+    }
+    .modal-dialog.modal-xl {
+        max-width: 90%;
+    }
+    .image-info {
+        margin-top: 15px;
+    }
+    .filter-sort-controls {
+        margin-left: 15px;
+        display: inline-flex;
+        align-items: center;
+    }
+    .filter-sort-controls .dropdown {
+        margin-right: 10px;
+    }
+    .filter-sort-controls .btn {
+        display: flex;
+        align-items: center;
+    }
+    .filter-sort-controls .btn i {
+        margin-right: 5px;
+    }
+    .filter-badge {
+        margin-left: 10px;
+        font-size: 0.8rem;
+    }
+    .active-filter {
+        background-color: #0d6efd;
+        color: white;
+    }
+    .active-sort {
+        background-color: #0d6efd;
+        color: white;
+    }
+    .dropdown-item.active-option {
+        background-color: #0d6efd;
+        color: white;
+    }
+    .hidden-item {
+        display: none !important;
+    }
+    .filter-info {
+        font-size: 0.9rem;
+        color: #6c757d;
+        margin-top: 5px;
+        margin-bottom: 15px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card summary-card">
+            <div class="card-header bg-primary text-white">
+                <h2 class="mb-0"><i class="fas fa-chart-pie me-2"></i>Analysis Summary</h2>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="summary-item">
+                            <div class="summary-icon text-primary">
+                                <i class="fas fa-images"></i>
+                            </div>
+                            <div>
+                                <h5 class="mb-0">Total Images</h5>
+                                <p class="mb-0 fs-4" id="total-images-count">{{ results|length }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="summary-item">
+                            <div class="summary-icon text-success">
+                                <i class="fas fa-check-circle"></i>
+                            </div>
+                            <div>
+                                <h5 class="mb-0">{{ subject }}s Detected</h5>
+                                <p class="mb-0 fs-4" id="detected-count">{{ results|selectattr('detection_result', 'equalto', true)|list|length }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="summary-item">
+                            <div class="summary-icon text-danger">
+                                <i class="fas fa-times-circle"></i>
+                            </div>
+                            <div>
+                                <h5 class="mb-0">No {{ subject }}s Detected</h5>
+                                <p class="mb-0 fs-4" id="not-detected-count">{{ results|selectattr('detection_result', 'equalto', false)|list|length }}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row mt-3">
+                    <div class="col-md-4">
+                        <div class="summary-item">
+                            <div class="summary-icon text-secondary">
+                                <i class="fas fa-question-circle"></i>
+                            </div>
+                            <div>
+                                <h5 class="mb-0">Unknown</h5>
+                                <p class="mb-0 fs-4" id="unknown-count">{{ results|selectattr('detection_result', 'none')|list|length }}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center">
+                <h2><i class="fas fa-list me-2"></i>Detailed Results</h2>
+                <div class="filter-sort-controls">
+                    <div class="dropdown">
+                        <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="filterDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-filter"></i> Filter
+                        </button>
+                        <ul class="dropdown-menu" aria-labelledby="filterDropdown">
+                            <li><a class="dropdown-item active-option" href="#" data-filter="all">All Images</a></li>
+                            <li><a class="dropdown-item" href="#" data-filter="detected">{{ subject }}s Detected</a></li>
+                            <li><a class="dropdown-item" href="#" data-filter="not-detected">No {{ subject }}s</a></li>
+                            <li><a class="dropdown-item" href="#" data-filter="unknown">Unknown</a></li>
+                        </ul>
+                    </div>
+                    <div class="dropdown">
+                        <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="sortDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-sort"></i> Sort
+                        </button>
+                        <ul class="dropdown-menu" aria-labelledby="sortDropdown">
+                            <li><a class="dropdown-item active-option" href="#" data-sort="filename-asc">Filename (A-Z)</a></li>
+                            <li><a class="dropdown-item" href="#" data-sort="filename-desc">Filename (Z-A)</a></li>
+                            <li><a class="dropdown-item" href="#" data-sort="status-asc">{{ subject }} Status (No → Yes)</a></li>
+                            <li><a class="dropdown-item" href="#" data-sort="status-desc">{{ subject }} Status (Yes → No)</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <a href="{{ url_for('main.index') }}" class="btn btn-primary">
+                <i class="fas fa-upload me-2"></i>Upload More Images
+            </a>
+        </div>
+        <div class="filter-info" id="filterInfo">
+            Showing all images, sorted by filename (A-Z)
+        </div>
+        <hr>
+    </div>
+</div>
+
+<div class="row" id="results-container">
+    {% for result in results %}
+    <div class="col-md-4 mb-4 result-item" data-index="{{ loop.index0 }}" data-flare="{{ result.detection_result|lower if result.detection_result is not none else 'unknown' }}" data-filename="{{ result.filename }}">
+        <div class="card result-card">
+            <img src="data:image/jpeg;base64,{{ result.thumbnail }}" class="thumbnail" alt="{{ result.filename }}" 
+                 data-image="data:{{ result.mime_type }};base64,{{ result.full_image }}"
+                 data-filename="{{ result.filename }}"
+                 data-flare="{{ result.detection_result|string|lower if result.detection_result is not none else 'unknown' }}"
+                 data-index="{{ loop.index0 }}">
+            <div class="card-body">
+                <h5 class="card-title text-truncate" title="{{ result.filename }}">{{ result.filename }}</h5>
+                <p class="card-text">
+                    <strong>{{ subject }} Detected:</strong> 
+                    {% if result.detection_result == true %}
+                        <span class="result-true"><i class="fas fa-check-circle"></i> Yes</span>
+                    {% elif result.detection_result == false %}
+                        <span class="result-false"><i class="fas fa-times-circle"></i> No</span>
+                    {% else %}
+                        <span class="result-unknown"><i class="fas fa-question-circle"></i> Unknown</span>
+                    {% endif %}
+                </p>
+                {% if not result.success %}
+                <p class="card-text text-danger">
+                    <i class="fas fa-exclamation-triangle"></i> Error: {{ result.error }}
+                </p>
+                {% endif %}
+                <div class="card-actions">
+                    <button class="btn btn-sm btn-outline-danger delete-image-btn" data-index="{{ loop.index0 }}" data-filename="{{ result.filename }}">
+                        <i class="fas fa-trash-alt"></i> Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Full Image Modal -->
+<div class="modal fade" id="imageModal" tabindex="-1" aria-labelledby="imageModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content full-image-modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="imageModalLabel">Image Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center">
+                <img src="" id="fullImage" class="full-image" alt="Full size image">
+                <div class="image-info mt-3">
+                    <h4 id="imageFilename"></h4>
+                    <p id="imageFlareStatus" class="mt-2 fs-5"></p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-danger" id="modal-delete-btn">
+                    <i class="fas fa-trash-alt"></i> Delete Image
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Confirmation Modal -->
+<div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-labelledby="deleteConfirmModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteConfirmModalLabel">Confirm Deletion</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                Are you sure you want to delete the image <span id="filename-to-delete" class="fw-bold"></span>?
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirm-delete-btn">Delete</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Store the subject for use in JavaScript
+        const subject = "{{ subject }}";
+        
+        // Get the delete buttons
+        const deleteButtons = document.querySelectorAll('.delete-image-btn');
+        const deleteModal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
+        const filenameToDelete = document.getElementById('filename-to-delete');
+        const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
+        
+        // Full image modal elements
+        const imageModal = new bootstrap.Modal(document.getElementById('imageModal'));
+        const fullImage = document.getElementById('fullImage');
+        const imageFilename = document.getElementById('imageFilename');
+        const imageFlareStatus = document.getElementById('imageFlareStatus');
+        const modalDeleteBtn = document.getElementById('modal-delete-btn');
+        
+        // Filter and sort elements
+        const filterDropdownItems = document.querySelectorAll('[data-filter]');
+        const sortDropdownItems = document.querySelectorAll('[data-sort]');
+        const filterDropdownButton = document.getElementById('filterDropdown');
+        const sortDropdownButton = document.getElementById('sortDropdown');
+        const filterInfoText = document.getElementById('filterInfo');
+        
+        // Current filter and sort state
+        let currentFilter = 'all';
+        let currentSort = 'filename-asc';
+        
+        // Apply filter and sort
+        function applyFilterAndSort() {
+            const resultItems = document.querySelectorAll('.result-item');
+            
+            // Update filter info text
+            updateFilterInfoText();
+            
+            // First, filter the items
+            resultItems.forEach(item => {
+                const flareStatus = item.getAttribute('data-flare');
+                
+                if (currentFilter === 'all' || flareStatus === currentFilter) {
+                    item.classList.remove('hidden-item');
+                } else {
+                    item.classList.add('hidden-item');
+                }
+            });
+            
+            // Then, sort the visible items
+            const resultsContainer = document.getElementById('results-container');
+            const visibleItems = Array.from(resultItems).filter(item => !item.classList.contains('hidden-item'));
+            
+            visibleItems.sort((a, b) => {
+                if (currentSort === 'filename-asc') {
+                    return a.getAttribute('data-filename').localeCompare(b.getAttribute('data-filename'));
+                } else if (currentSort === 'filename-desc') {
+                    return b.getAttribute('data-filename').localeCompare(a.getAttribute('data-filename'));
+                } else if (currentSort === 'status-asc') {
+                    // Sort order: false, unknown, true
+                    const aFlare = a.getAttribute('data-flare');
+                    const bFlare = b.getAttribute('data-flare');
+                    
+                    if (aFlare === bFlare) return 0;
+                    if (aFlare === 'false') return -1;
+                    if (bFlare === 'false') return 1;
+                    if (aFlare === 'unknown') return -1;
+                    if (bFlare === 'unknown') return 1;
+                    return 0;
+                } else if (currentSort === 'status-desc') {
+                    // Sort order: true, unknown, false
+                    const aFlare = a.getAttribute('data-flare');
+                    const bFlare = b.getAttribute('data-flare');
+                    
+                    if (aFlare === bFlare) return 0;
+                    if (aFlare === 'true') return -1;
+                    if (bFlare === 'true') return 1;
+                    if (aFlare === 'unknown') return -1;
+                    if (bFlare === 'unknown') return 1;
+                    return 0;
+                }
+                return 0;
+            });
+            
+            // Reorder the DOM elements
+            visibleItems.forEach(item => {
+                resultsContainer.appendChild(item);
+            });
+            
+            // Save filter and sort state to sessionStorage
+            sessionStorage.setItem('currentFilter', currentFilter);
+            sessionStorage.setItem('currentSort', currentSort);
+        }
+        
+        // Update filter info text
+        function updateFilterInfoText() {
+            let filterText = '';
+            let sortText = '';
+            
+            // Get filter text
+            if (currentFilter === 'all') {
+                filterText = 'all images';
+            } else if (currentFilter === 'detected') {
+                filterText = `images with ${subject}s detected`;
+            } else if (currentFilter === 'not-detected') {
+                filterText = `images with no ${subject}s`;
+            } else if (currentFilter === 'unknown') {
+                filterText = 'images with unknown status';
+            }
+            
+            // Get sort text
+            if (currentSort === 'filename-asc') {
+                sortText = 'filename (A-Z)';
+            } else if (currentSort === 'filename-desc') {
+                sortText = 'filename (Z-A)';
+            } else if (currentSort === 'status-asc') {
+                sortText = `${subject} status (No → Yes)`;
+            } else if (currentSort === 'status-desc') {
+                sortText = `${subject} status (Yes → No)`;
+            }
+            
+            // Update the info text
+            filterInfoText.textContent = `Showing ${filterText}, sorted by ${sortText}`;
+        }
+        
+        // Handle filter dropdown clicks
+        filterDropdownItems.forEach(item => {
+            item.addEventListener('click', function(e) {
+                e.preventDefault();
+                
+                // Update active class
+                filterDropdownItems.forEach(i => i.classList.remove('active-option'));
+                this.classList.add('active-option');
+                
+                // Update current filter
+                currentFilter = this.getAttribute('data-filter');
+                
+                // Apply filter and sort
+                applyFilterAndSort();
+            });
+        });
+        
+        // Handle sort dropdown clicks
+        sortDropdownItems.forEach(item => {
+            item.addEventListener('click', function(e) {
+                e.preventDefault();
+                
+                // Update active class
+                sortDropdownItems.forEach(i => i.classList.remove('active-option'));
+                this.classList.add('active-option');
+                
+                // Update current sort
+                currentSort = this.getAttribute('data-sort');
+                
+                // Apply filter and sort
+                applyFilterAndSort();
+            });
+        });
+        
+        // Load saved filter and sort state from sessionStorage
+        const savedFilter = sessionStorage.getItem('currentFilter');
+        const savedSort = sessionStorage.getItem('currentSort');
+        
+        if (savedFilter) {
+            currentFilter = savedFilter;
+            // Update active class in dropdown
+            filterDropdownItems.forEach(item => {
+                if (item.getAttribute('data-filter') === currentFilter) {
+                    item.classList.add('active-option');
+                } else {
+                    item.classList.remove('active-option');
+                }
+            });
+        }
+        
+        if (savedSort) {
+            currentSort = savedSort;
+            // Update active class in dropdown
+            sortDropdownItems.forEach(item => {
+                if (item.getAttribute('data-sort') === currentSort) {
+                    item.classList.add('active-option');
+                } else {
+                    item.classList.remove('active-option');
+                }
+            });
+        }
+        
+        // Apply initial filter and sort
+        applyFilterAndSort();
+        
+        // Handle thumbnail click to show full image
+        document.querySelectorAll('.thumbnail').forEach(thumbnail => {
+            thumbnail.addEventListener('click', function(e) {
+                // Prevent any default behavior or event propagation
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const imageUrl = this.getAttribute('data-image');
+                const filename = this.getAttribute('data-filename');
+                const flareStatus = this.getAttribute('data-flare');
+                const index = this.getAttribute('data-index');
+                
+                console.log("Detection status:", flareStatus); // Debug log
+                
+                // Set the image source and details
+                fullImage.src = imageUrl;
+                imageFilename.textContent = filename;
+                
+                // Set the detection status with appropriate styling
+                if (flareStatus === 'true') {
+                    imageFlareStatus.innerHTML = `<span class="result-true"><i class="fas fa-check-circle"></i> ${subject} Detected: Yes</span>`;
+                } else if (flareStatus === 'false') {
+                    imageFlareStatus.innerHTML = `<span class="result-false"><i class="fas fa-times-circle"></i> ${subject} Detected: No</span>`;
+                } else {
+                    imageFlareStatus.innerHTML = `<span class="result-unknown"><i class="fas fa-question-circle"></i> ${subject} Detected: Unknown</span>`;
+                }
+                
+                // Set the delete button's data-index attribute
+                modalDeleteBtn.setAttribute('data-index', index);
+                modalDeleteBtn.setAttribute('data-filename', filename);
+                
+                // Show the modal
+                imageModal.show();
+            });
+        });
+        
+        // Handle delete button in the full image modal
+        modalDeleteBtn.addEventListener('click', function() {
+            const index = this.getAttribute('data-index');
+            const filename = this.getAttribute('data-filename');
+            
+            // Hide the image modal
+            imageModal.hide();
+            
+            // Set the filename in the confirmation modal
+            filenameToDelete.textContent = filename;
+            
+            // Set the index on the confirm button
+            confirmDeleteBtn.setAttribute('data-index', index);
+            
+            // Show the confirmation modal
+            deleteModal.show();
+        });
+        
+        // Add click event to delete buttons
+        deleteButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const index = this.getAttribute('data-index');
+                const filename = this.getAttribute('data-filename');
+                
+                // Set the filename in the modal
+                filenameToDelete.textContent = filename;
+                
+                // Set the index on the confirm button
+                confirmDeleteBtn.setAttribute('data-index', index);
+                
+                // Show the modal
+                deleteModal.show();
+            });
+        });
+        
+        // Handle confirm delete button click
+        confirmDeleteBtn.addEventListener('click', function() {
+            const index = this.getAttribute('data-index');
+            
+            // Send delete request to the server
+            fetch(`/api/delete_image/${index}`, {
+                method: 'DELETE'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Hide the modal
+                    deleteModal.hide();
+                    
+                    // Find the element to remove
+                    const elementToRemove = document.querySelector(`.result-item[data-index="${index}"]`);
+                    
+                    // Check if the element has a flare or not
+                    const hasFlare = elementToRemove.getAttribute('data-flare') === 'true';
+                    
+                    // Add animation class
+                    elementToRemove.classList.add('image-removed');
+                    
+                    // Remove the element after animation completes
+                    setTimeout(() => {
+                        elementToRemove.remove();
+                        
+                        // Update the counts
+                        updateCounts(data.remaining_count, hasFlare);
+                        
+                        // Show a toast or notification
+                        showNotification(data.message, 'success');
+                    }, 500);
+                } else {
+                    // Hide the modal
+                    deleteModal.hide();
+                    
+                    // Show error notification
+                    showNotification(`Error: ${data.error}`, 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                deleteModal.hide();
+                showNotification('An error occurred while deleting the image.', 'danger');
+            });
+        });
+        
+        // Function to update the counts in the summary
+        function updateCounts(totalRemaining, wasFlare) {
+            const totalImagesCount = document.getElementById('total-images-count');
+            const detectedCount = document.getElementById('detected-count');
+            const notDetectedCount = document.getElementById('not-detected-count');
+            const unknownCount = document.getElementById('unknown-count');
+            
+            // Update total count
+            totalImagesCount.textContent = totalRemaining;
+            
+            // Update detection counts if we know the status
+            if (wasFlare !== undefined) {
+                if (wasFlare) {
+                    detectedCount.textContent = parseInt(detectedCount.textContent) - 1;
+                } else {
+                    notDetectedCount.textContent = parseInt(notDetectedCount.textContent) - 1;
+                }
+            }
+        }
+        
+        // Function to show a notification
+        function showNotification(message, type) {
+            // Create a toast element
+            const toastContainer = document.createElement('div');
+            toastContainer.className = 'position-fixed bottom-0 end-0 p-3';
+            toastContainer.style.zIndex = '5';
+            
+            const toastElement = document.createElement('div');
+            toastElement.className = `toast align-items-center text-white bg-${type} border-0`;
+            toastElement.setAttribute('role', 'alert');
+            toastElement.setAttribute('aria-live', 'assertive');
+            toastElement.setAttribute('aria-atomic', 'true');
+            
+            const toastBody = document.createElement('div');
+            toastBody.className = 'd-flex';
+            
+            const toastContent = document.createElement('div');
+            toastContent.className = 'toast-body';
+            toastContent.textContent = message;
+            
+            const closeButton = document.createElement('button');
+            closeButton.type = 'button';
+            closeButton.className = 'btn-close btn-close-white me-2 m-auto';
+            closeButton.setAttribute('data-bs-dismiss', 'toast');
+            closeButton.setAttribute('aria-label', 'Close');
+            
+            toastBody.appendChild(toastContent);
+            toastBody.appendChild(closeButton);
+            toastElement.appendChild(toastBody);
+            toastContainer.appendChild(toastElement);
+            
+            document.body.appendChild(toastContainer);
+            
+            // Initialize and show the toast
+            const toast = new bootstrap.Toast(toastElement, {
+                autohide: true,
+                delay: 3000
+            });
+            toast.show();
+            
+            // Remove the toast element after it's hidden
+            toastElement.addEventListener('hidden.bs.toast', function() {
+                document.body.removeChild(toastContainer);
+            });
+        }
+    });
+</script>
+{% endblock %}
