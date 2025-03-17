@@ -60,6 +60,17 @@
         display: none;
         margin-top: 20px;
     }
+    .progress-info {
+        display: none;
+        text-align: center;
+        margin-top: 5px;
+        font-size: 0.9rem;
+        color: #6c757d;
+    }
+    .upload-status {
+        margin-top: 10px;
+        display: none;
+    }
 </style>
 {% endblock %}
 
@@ -104,9 +115,16 @@
                     <div class="progress">
                         <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
                     </div>
+                    <div class="progress-info">
+                        <span id="upload-percentage">0%</span> - <span id="upload-speed">0 KB/s</span> - <span id="upload-remaining">Calculating...</span>
+                    </div>
+                    <div class="upload-status alert alert-info" id="upload-status">
+                        <i class="fas fa-spinner fa-spin me-2"></i>
+                        <span id="status-message">Preparing files...</span>
+                    </div>
                     
                     <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-3">
-                        <button type="submit" class="btn btn-primary" id="upload-button">
+                        <button type="button" class="btn btn-primary" id="upload-button">
                             <i class="fas fa-upload me-2"></i>Upload and Analyze
                         </button>
                     </div>
@@ -183,6 +201,17 @@
         const uploadButton = document.getElementById('upload-button');
         const progressBar = document.querySelector('.progress-bar');
         const progress = document.querySelector('.progress');
+        const progressInfo = document.querySelector('.progress-info');
+        const uploadPercentage = document.getElementById('upload-percentage');
+        const uploadSpeed = document.getElementById('upload-speed');
+        const uploadRemaining = document.getElementById('upload-remaining');
+        const uploadStatus = document.getElementById('upload-status');
+        const statusMessage = document.getElementById('status-message');
+        
+        // Variables to track progress
+        let progressTimeout;
+        let lastProgressUpdate = 0;
+        let stuckCounter = 0;
         
         // Open file dialog when browse button is clicked
         browseBtn.addEventListener('click', function() {
@@ -291,21 +320,238 @@
             fileCount.textContent = `${fileInput.files.length} files selected`;
         }
         
-        // Show progress bar when form is submitted
-        form.addEventListener('submit', function() {
-            uploadButton.disabled = true;
-            uploadButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Uploading and Analyzing...';
+        // Format bytes to human-readable format
+        function formatBytes(bytes, decimals = 2) {
+            if (bytes === 0) return '0 Bytes';
             
+            const k = 1024;
+            const dm = decimals < 0 ? 0 : decimals;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+            
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+        }
+        
+        // Format time to human-readable format
+        function formatTime(seconds) {
+            if (seconds < 60) {
+                return `${Math.floor(seconds)}s`;
+            } else if (seconds < 3600) {
+                const minutes = Math.floor(seconds / 60);
+                const remainingSeconds = Math.floor(seconds % 60);
+                return `${minutes}m ${remainingSeconds}s`;
+            } else {
+                const hours = Math.floor(seconds / 3600);
+                const minutes = Math.floor((seconds % 3600) / 60);
+                return `${hours}h ${minutes}m`;
+            }
+        }
+        
+        // Handle form submission with progress tracking
+        uploadButton.addEventListener('click', function(e) {
+            e.preventDefault();
+            
+            if (fileInput.files.length === 0) {
+                alert('Please select at least one image to upload.');
+                return;
+            }
+            
+            // Disable the upload button
+            uploadButton.disabled = true;
+            uploadButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Uploading...';
+            
+            // Show progress elements
             progress.style.display = 'block';
-            let width = 0;
-            const interval = setInterval(function() {
-                if (width >= 90) {
-                    clearInterval(interval);
-                } else {
-                    width += 1;
-                    progressBar.style.width = width + '%';
+            progressInfo.style.display = 'block';
+            uploadStatus.style.display = 'block';
+            statusMessage.textContent = 'Preparing files...';
+            
+            // Reset progress tracking variables
+            lastProgressUpdate = 0;
+            stuckCounter = 0;
+            
+            // Create FormData object
+            const formData = new FormData(form);
+            
+            // Calculate total upload size
+            let totalSize = 0;
+            for (let i = 0; i < fileInput.files.length; i++) {
+                totalSize += fileInput.files[i].size;
+            }
+            
+            // Create and configure XMLHttpRequest
+            const xhr = new XMLHttpRequest();
+            let startTime = Date.now();
+            let lastLoaded = 0;
+            let lastTime = startTime;
+            let currentSpeed = 0;
+            
+            // Set up progress timeout to handle stalled uploads
+            function setupProgressTimeout() {
+                // Clear any existing timeout
+                if (progressTimeout) {
+                    clearTimeout(progressTimeout);
                 }
-            }, 100);
+                
+                // Set a new timeout
+                progressTimeout = setTimeout(function() {
+                    // If we haven't received a progress event in 3 seconds
+                    const currentProgress = parseInt(progressBar.style.width);
+                    
+                    // If progress is the same as last time
+                    if (currentProgress === lastProgressUpdate) {
+                        stuckCounter++;
+                        
+                        // If we've been stuck for multiple checks
+                        if (stuckCounter >= 3) {
+                            // Advance the progress bar slightly to show activity
+                            if (currentProgress < 90) {
+                                const newProgress = Math.min(currentProgress + 5, 90);
+                                progressBar.style.width = newProgress + '%';
+                                uploadPercentage.textContent = newProgress + '%';
+                                statusMessage.textContent = 'Still uploading... this may take a while';
+                            }
+                        }
+                    } else {
+                        // Progress has changed, reset the stuck counter
+                        stuckCounter = 0;
+                        lastProgressUpdate = currentProgress;
+                    }
+                    
+                    // Set up the next timeout
+                    setupProgressTimeout();
+                }, 3000); // Check every 3 seconds
+            }
+            
+            // Start the progress timeout
+            setupProgressTimeout();
+            
+            // Track upload progress
+            xhr.upload.addEventListener('progress', function(e) {
+                if (e.lengthComputable) {
+                    // Calculate percentage
+                    const percentComplete = Math.round((e.loaded / e.total) * 100);
+                    progressBar.style.width = percentComplete + '%';
+                    uploadPercentage.textContent = percentComplete + '%';
+                    
+                    // Update last progress
+                    lastProgressUpdate = percentComplete;
+                    stuckCounter = 0;
+                    
+                    // Calculate speed
+                    const currentTime = Date.now();
+                    const elapsedTime = (currentTime - lastTime) / 1000; // in seconds
+                    
+                    if (elapsedTime > 0.5) { // Update every 500ms
+                        const loadDifference = e.loaded - lastLoaded;
+                        currentSpeed = loadDifference / elapsedTime; // bytes per second
+                        
+                        // Update last values
+                        lastLoaded = e.loaded;
+                        lastTime = currentTime;
+                        
+                        // Display speed
+                        uploadSpeed.textContent = formatBytes(currentSpeed) + '/s';
+                        
+                        // Calculate and display remaining time
+                        if (currentSpeed > 0) {
+                            const remainingBytes = e.total - e.loaded;
+                            const remainingTime = remainingBytes / currentSpeed; // seconds
+                            uploadRemaining.textContent = formatTime(remainingTime) + ' remaining';
+                        }
+                    }
+                    
+                    // Update status message
+                    statusMessage.textContent = `Uploading files (${formatBytes(e.loaded)} of ${formatBytes(e.total)})...`;
+                }
+            });
+            
+            // Handle upload complete
+            xhr.upload.addEventListener('load', function() {
+                // Clear the progress timeout
+                if (progressTimeout) {
+                    clearTimeout(progressTimeout);
+                }
+                
+                statusMessage.textContent = 'Upload complete. Processing images...';
+                progressBar.classList.add('bg-success');
+                
+                // Start a processing progress simulation
+                let processingProgress = 90;
+                const processingInterval = setInterval(function() {
+                    if (processingProgress < 99) {
+                        processingProgress += 1;
+                        progressBar.style.width = processingProgress + '%';
+                        uploadPercentage.textContent = processingProgress + '%';
+                    } else {
+                        clearInterval(processingInterval);
+                    }
+                }, 1000);
+            });
+            
+            // Handle errors
+            xhr.upload.addEventListener('error', function() {
+                // Clear the progress timeout
+                if (progressTimeout) {
+                    clearTimeout(progressTimeout);
+                }
+                
+                uploadStatus.classList.remove('alert-info');
+                uploadStatus.classList.add('alert-danger');
+                statusMessage.textContent = 'An error occurred during upload.';
+                uploadButton.disabled = false;
+                uploadButton.innerHTML = '<i class="fas fa-upload me-2"></i>Try Again';
+            });
+            
+            // Handle response
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === 4) {
+                    // Clear the progress timeout
+                    if (progressTimeout) {
+                        clearTimeout(progressTimeout);
+                    }
+                    
+                    if (xhr.status === 200) {
+                        // Check if response is JSON
+                        try {
+                            const response = JSON.parse(xhr.responseText);
+                            if (response.error) {
+                                // Show error
+                                uploadStatus.classList.remove('alert-info');
+                                uploadStatus.classList.add('alert-danger');
+                                statusMessage.textContent = 'Error: ' + response.error;
+                                uploadButton.disabled = false;
+                                uploadButton.innerHTML = '<i class="fas fa-upload me-2"></i>Try Again';
+                            } else if (response.success && response.redirect) {
+                                // Successful upload with redirect URL
+                                statusMessage.textContent = 'Upload and processing complete! Redirecting...';
+                                window.location.href = response.redirect;
+                            }
+                        } catch (e) {
+                            // Response is HTML, redirect to results page
+                            document.open();
+                            document.write(xhr.responseText);
+                            document.close();
+                        }
+                    } else if (xhr.status === 302) {
+                        // Handle redirect
+                        window.location.href = xhr.getResponseHeader('Location');
+                    } else {
+                        // Show error
+                        uploadStatus.classList.remove('alert-info');
+                        uploadStatus.classList.add('alert-danger');
+                        statusMessage.textContent = 'Server error: ' + xhr.status;
+                        uploadButton.disabled = false;
+                        uploadButton.innerHTML = '<i class="fas fa-upload me-2"></i>Try Again';
+                    }
+                }
+            };
+            
+            // Open and send the request
+            xhr.open('POST', form.action, true);
+            xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+            xhr.send(formData);
         });
     });
 </script>

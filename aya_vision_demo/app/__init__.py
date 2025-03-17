@@ -2,6 +2,7 @@ import logging
 import os
 from flask import Flask
 from config import get_config
+import markupsafe
 
 def create_app(config_name=None):
     """
@@ -29,6 +30,9 @@ def create_app(config_name=None):
     if not app.config.get('COHERE_API_KEY'):
         app.logger.warning("COHERE_API_KEY is not set. API calls will fail.")
     
+    # Register custom Jinja2 filters
+    register_jinja_filters(app)
+    
     # Register blueprints
     from app.routes import main_bp
     app.register_blueprint(main_bp)
@@ -37,6 +41,18 @@ def create_app(config_name=None):
     register_error_handlers(app)
     
     return app
+
+def register_jinja_filters(app):
+    """Register custom Jinja2 filters for the application."""
+    
+    @app.template_filter('nl2br')
+    def nl2br_filter(text):
+        """Convert newlines to HTML <br> tags."""
+        if not text:
+            return ""
+        text = markupsafe.escape(text)
+        result = text.replace('\n', markupsafe.Markup('<br>\n'))
+        return markupsafe.Markup(result)
 
 def register_error_handlers(app):
     """Register error handlers for the application."""

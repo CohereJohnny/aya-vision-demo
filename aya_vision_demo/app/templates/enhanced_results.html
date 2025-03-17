@@ -1,0 +1,583 @@
+{% extends "base.html" %}
+
+{% block title %}Enhanced Analysis Results - AYA Vision Detection Demo{% endblock %}
+
+{% block extra_css %}
+<style>
+    .result-card {
+        transition: transform 0.2s;
+        margin-bottom: 20px;
+    }
+    .result-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+    }
+    .thumbnail {
+        width: 100%;
+        height: 200px;
+        object-fit: cover;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+    .result-true {
+        color: #28a745;
+    }
+    .result-false {
+        color: #dc3545;
+    }
+    .result-unknown {
+        color: #6c757d;
+    }
+    .summary-card {
+        margin-bottom: 30px;
+    }
+    .summary-item {
+        display: flex;
+        align-items: center;
+        margin-bottom: 10px;
+    }
+    .summary-icon {
+        font-size: 24px;
+        margin-right: 15px;
+    }
+    .delete-btn {
+        color: #dc3545;
+        cursor: pointer;
+        transition: color 0.2s;
+    }
+    .delete-btn:hover {
+        color: #bd2130;
+    }
+    .card-actions {
+        display: flex;
+        justify-content: flex-end;
+        margin-top: 15px;
+    }
+    .image-removed {
+        opacity: 0;
+        height: 0;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        transition: all 0.5s ease;
+    }
+    .full-image-modal-content {
+        max-width: 90%;
+        margin: 0 auto;
+    }
+    .full-image {
+        max-width: 100%;
+        max-height: 80vh;
+        display: block;
+        margin: 0 auto;
+    }
+    .modal-dialog.modal-xl {
+        max-width: 90%;
+    }
+    .image-info {
+        margin-top: 15px;
+    }
+    .filter-sort-controls {
+        margin-left: 15px;
+        display: inline-flex;
+        align-items: center;
+    }
+    .filter-sort-controls .dropdown {
+        margin-right: 10px;
+    }
+    .filter-sort-controls .btn {
+        display: flex;
+        align-items: center;
+    }
+    .filter-sort-controls .btn i {
+        margin-right: 5px;
+    }
+    .filter-badge {
+        margin-left: 10px;
+        font-size: 0.8rem;
+    }
+    .active-filter {
+        background-color: #0d6efd;
+        color: white;
+    }
+    .active-sort {
+        background-color: #0d6efd;
+        color: white;
+    }
+    .dropdown-item.active-option {
+        background-color: #0d6efd;
+        color: white;
+    }
+    .hidden-item {
+        display: none !important;
+    }
+    .filter-info {
+        font-size: 0.9rem;
+        color: #6c757d;
+        margin-top: 5px;
+        margin-bottom: 15px;
+    }
+    .analysis-text {
+        max-height: 250px;
+        overflow-y: auto;
+        font-size: 1rem;
+        background-color: #f8f9fa;
+        padding: 15px;
+        border-radius: 4px;
+        border: 1px solid #dee2e6;
+        line-height: 1.5;
+    }
+    .enhanced-analysis-section {
+        margin-top: 0;
+        padding-top: 0;
+    }
+    .analysis-label {
+        font-weight: bold;
+        margin-bottom: 10px;
+        color: #495057;
+        font-size: 1.1rem;
+    }
+    .card-header {
+        background-color: #f8f9fa;
+        border-bottom: 2px solid #e9ecef;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h2 class="mb-0"><i class="fas fa-microscope me-2"></i>Enhanced Analysis Results</h2>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="summary-item">
+                            <div class="summary-icon text-primary">
+                                <i class="fas fa-image"></i>
+                            </div>
+                            <div>
+                                <h5 class="mb-0">Total Images Analyzed</h5>
+                                <p class="mb-0 fs-4" id="total-count">{{ results|length }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="summary-item">
+                            <div class="summary-icon text-success">
+                                <i class="fas fa-check-circle"></i>
+                            </div>
+                            <div>
+                                <h5 class="mb-0">{{ subject }}<span id="detected-plural"></span> Analyzed</h5>
+                                <p class="mb-0 fs-4">{{ results|length }}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            These results show detailed analysis of {{ subject }}<span id="info-plural"></span> detected in the initial analysis.
+                            The enhanced analysis provides more detailed information about each image.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center">
+                <h2><i class="fas fa-list me-2"></i>Detailed Enhanced Results</h2>
+                <div class="filter-sort-controls">
+                    <div class="dropdown">
+                        <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="sortDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-sort"></i> Sort
+                        </button>
+                        <ul class="dropdown-menu" aria-labelledby="sortDropdown">
+                            <li><a class="dropdown-item active-option" href="#" data-sort="filename-asc">Filename (A-Z)</a></li>
+                            <li><a class="dropdown-item" href="#" data-sort="filename-desc">Filename (Z-A)</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <a href="{{ url_for('main.results') }}" class="btn btn-primary">
+                <i class="fas fa-arrow-left me-2"></i>Back to Initial Results
+            </a>
+        </div>
+        <div class="filter-info" id="filterInfo">
+            Showing all enhanced analysis results, sorted by filename (A-Z)
+        </div>
+        <hr>
+    </div>
+</div>
+
+<div class="row" id="results-container">
+    {% for result in results %}
+    <div class="col-12 mb-4 result-item" data-index="{{ loop.index0 }}" data-filename="{{ result.filename }}">
+        <div class="card result-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 text-truncate" title="{{ result.filename }}">{{ result.filename }}</h5>
+                <span class="badge bg-success">{{ subject }} Detected</span>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <img src="data:image/jpeg;base64,{{ result.thumbnail }}" class="thumbnail" alt="{{ result.filename }}" 
+                             data-image="data:{{ result.mime_type }};base64,{{ result.full_image }}"
+                             data-filename="{{ result.filename }}"
+                             data-index="{{ loop.index0 }}">
+                    </div>
+                    <div class="col-md-9">
+                        <div class="enhanced-analysis-section">
+                            <div class="analysis-label">
+                                <i class="fas fa-microscope me-1"></i> Enhanced Analysis:
+                            </div>
+                            <div class="analysis-text">
+                                {% if result.enhanced_analysis %}
+                                    {{ result.enhanced_analysis|nl2br }}
+                                {% else %}
+                                    <span class="text-muted">No enhanced analysis available.</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% if not result.success %}
+                <div class="mt-3">
+                    <p class="card-text text-danger">
+                        <i class="fas fa-exclamation-triangle"></i> Error: {{ result.error }}
+                    </p>
+                </div>
+                {% endif %}
+                <div class="card-actions mt-3 d-flex justify-content-end">
+                    <button class="btn btn-sm btn-outline-danger delete-image-btn" data-index="{{ loop.index0 }}" data-filename="{{ result.filename }}">
+                        <i class="fas fa-trash-alt"></i> Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Full Image Modal -->
+<div class="modal fade" id="imageModal" tabindex="-1" aria-labelledby="imageModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content full-image-modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="imageModalLabel">Enhanced Analysis Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-5">
+                        <img src="" id="fullImage" class="full-image" alt="Full size image">
+                    </div>
+                    <div class="col-md-7">
+                        <div class="image-info">
+                            <h4 id="imageFilename"></h4>
+                            <div class="mt-3">
+                                <h5><i class="fas fa-microscope me-2"></i>Enhanced Analysis:</h5>
+                                <div class="analysis-text" id="modalEnhancedAnalysis" style="max-height: 400px;">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-danger" id="modal-delete-btn">
+                    <i class="fas fa-trash-alt"></i> Delete Image
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Confirmation Modal -->
+<div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-labelledby="deleteConfirmModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteConfirmModalLabel">Confirm Deletion</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                Are you sure you want to delete the image <span id="filename-to-delete" class="fw-bold"></span>?
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirm-delete-btn">Delete</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Store the subject for use in JavaScript
+        const subject = "{{ subject }}";
+        
+        // Function to check if a word is already plural
+        function isPlural(word) {
+            // Common plural endings
+            const pluralEndings = ['s', 'es', 'ies', 'ves', 'en', 'a', 'i'];
+            
+            // Check for irregular plurals
+            const irregularPlurals = {
+                'person': 'people',
+                'child': 'children',
+                'man': 'men',
+                'woman': 'women',
+                'tooth': 'teeth',
+                'foot': 'feet',
+                'mouse': 'mice',
+                'goose': 'geese'
+            };
+            
+            // Check if it's an irregular plural
+            for (const [singular, plural] of Object.entries(irregularPlurals)) {
+                if (word.toLowerCase() === plural) {
+                    return true;
+                }
+            }
+            
+            // Check for common plural endings
+            for (const ending of pluralEndings) {
+                if (word.toLowerCase().endsWith(ending) && 
+                    // Special cases for words that end in 's' but aren't plural
+                    !['lens', 'bus', 'gas', 'bias', 'atlas', 'virus', 'campus'].includes(word.toLowerCase())) {
+                    return true;
+                }
+            }
+            
+            return false;
+        }
+        
+        // Function to get plural form of a word
+        function getPlural(word) {
+            return isPlural(word) ? '' : 's';
+        }
+        
+        // Set plural markers in the UI
+        document.getElementById('detected-plural').textContent = getPlural(subject);
+        document.getElementById('info-plural').textContent = getPlural(subject);
+        
+        // Get the delete buttons
+        const deleteButtons = document.querySelectorAll('.delete-image-btn');
+        const deleteModal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
+        const filenameToDelete = document.getElementById('filename-to-delete');
+        const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
+        
+        // Full image modal elements
+        const imageModal = new bootstrap.Modal(document.getElementById('imageModal'));
+        const fullImage = document.getElementById('fullImage');
+        const imageFilename = document.getElementById('imageFilename');
+        const modalEnhancedAnalysis = document.getElementById('modalEnhancedAnalysis');
+        const modalDeleteBtn = document.getElementById('modal-delete-btn');
+        
+        // Sort elements
+        const sortDropdownItems = document.querySelectorAll('[data-sort]');
+        const sortDropdownButton = document.getElementById('sortDropdown');
+        const filterInfoText = document.getElementById('filterInfo');
+        
+        // Current sort state
+        let currentSort = 'filename-asc';
+        
+        // Apply sort
+        function applySort() {
+            const resultItems = document.querySelectorAll('.result-item');
+            
+            // Update filter info text
+            updateFilterInfoText();
+            
+            // Sort the items
+            const resultsContainer = document.getElementById('results-container');
+            const items = Array.from(resultItems);
+            
+            items.sort((a, b) => {
+                if (currentSort === 'filename-asc') {
+                    return a.getAttribute('data-filename').localeCompare(b.getAttribute('data-filename'));
+                } else if (currentSort === 'filename-desc') {
+                    return b.getAttribute('data-filename').localeCompare(a.getAttribute('data-filename'));
+                }
+                return 0;
+            });
+            
+            // Reorder the DOM elements
+            items.forEach(item => {
+                resultsContainer.appendChild(item);
+            });
+            
+            // Save sort state to sessionStorage
+            sessionStorage.setItem('enhancedCurrentSort', currentSort);
+        }
+        
+        // Update filter info text
+        function updateFilterInfoText() {
+            let sortText = '';
+            
+            if (currentSort === 'filename-asc') {
+                sortText = 'filename (A-Z)';
+            } else if (currentSort === 'filename-desc') {
+                sortText = 'filename (Z-A)';
+            }
+            
+            filterInfoText.textContent = `Showing all enhanced analysis results, sorted by ${sortText}`;
+        }
+        
+        // Handle sort dropdown clicks
+        sortDropdownItems.forEach(item => {
+            item.addEventListener('click', function(e) {
+                e.preventDefault();
+                
+                // Update active class
+                sortDropdownItems.forEach(i => i.classList.remove('active-option'));
+                this.classList.add('active-option');
+                
+                // Update sort state
+                currentSort = this.getAttribute('data-sort');
+                
+                // Apply sort
+                applySort();
+            });
+        });
+        
+        // Handle thumbnail clicks to open modal
+        document.querySelectorAll('.thumbnail').forEach(thumbnail => {
+            thumbnail.addEventListener('click', function() {
+                const imageUrl = this.getAttribute('data-image');
+                const filename = this.getAttribute('data-filename');
+                const index = parseInt(this.getAttribute('data-index'));
+                
+                // Set modal content
+                fullImage.src = imageUrl;
+                imageFilename.textContent = filename;
+                
+                // Get enhanced analysis from the card
+                const analysisText = this.closest('.result-card').querySelector('.analysis-text').innerHTML;
+                modalEnhancedAnalysis.innerHTML = analysisText;
+                
+                // Set delete button data
+                modalDeleteBtn.setAttribute('data-index', index);
+                modalDeleteBtn.setAttribute('data-filename', filename);
+                
+                // Show modal
+                imageModal.show();
+            });
+        });
+        
+        // Handle delete button clicks
+        deleteButtons.forEach(button => {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                
+                const index = this.getAttribute('data-index');
+                const filename = this.getAttribute('data-filename');
+                
+                // Set confirmation modal content
+                filenameToDelete.textContent = filename;
+                
+                // Set confirm button data
+                confirmDeleteBtn.setAttribute('data-index', index);
+                confirmDeleteBtn.setAttribute('data-filename', filename);
+                
+                // Show confirmation modal
+                deleteModal.show();
+            });
+        });
+        
+        // Handle modal delete button click
+        modalDeleteBtn.addEventListener('click', function() {
+            const index = this.getAttribute('data-index');
+            const filename = this.getAttribute('data-filename');
+            
+            // Set confirmation modal content
+            filenameToDelete.textContent = filename;
+            
+            // Set confirm button data
+            confirmDeleteBtn.setAttribute('data-index', index);
+            confirmDeleteBtn.setAttribute('data-filename', filename);
+            
+            // Hide image modal and show confirmation modal
+            imageModal.hide();
+            deleteModal.show();
+        });
+        
+        // Handle confirm delete button click
+        confirmDeleteBtn.addEventListener('click', function() {
+            const index = this.getAttribute('data-index');
+            const filename = this.getAttribute('data-filename');
+            
+            // Send delete request to API
+            fetch(`/api/delete_image?result_id=${index}&enhanced=true`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Find the result item and add the removal class
+                    const resultItem = document.querySelector(`.result-item[data-index="${index}"]`);
+                    if (resultItem) {
+                        resultItem.classList.add('image-removed');
+                        
+                        // Remove the item after animation completes
+                        setTimeout(() => {
+                            resultItem.remove();
+                            
+                            // Update counts
+                            document.getElementById('total-count').textContent = document.querySelectorAll('.result-item').length;
+                            
+                            // If no results left, redirect to index
+                            if (document.querySelectorAll('.result-item').length === 0) {
+                                window.location.href = "{{ url_for('main.index') }}";
+                            }
+                        }, 500);
+                    }
+                    
+                    // Hide the confirmation modal
+                    deleteModal.hide();
+                } else {
+                    alert('Error deleting image: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error deleting image. Please try again.');
+            });
+        });
+        
+        // Load saved sort state from sessionStorage
+        const savedSort = sessionStorage.getItem('enhancedCurrentSort');
+        if (savedSort) {
+            currentSort = savedSort;
+            
+            // Update active class in dropdown
+            sortDropdownItems.forEach(item => {
+                if (item.getAttribute('data-sort') === currentSort) {
+                    item.classList.add('active-option');
+                } else {
+                    item.classList.remove('active-option');
+                }
+            });
+            
+            // Apply sort
+            applySort();
+        }
+    });
+</script>
+{% endblock %} 

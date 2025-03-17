@@ -89,13 +89,14 @@ def create_thumbnail(image_data: bytes, size: Tuple[int, int] = (100, 100)) -> s
     return encoded_thumbnail
 
 def analyze_image_with_cohere(
-    api_key: str, 
-    base64_image: str, 
-    mime_type: str, 
-    model_name: str, 
+    api_key: str,
+    base64_image: str,
+    mime_type: str,
+    model_name: str,
     prompt: str,
     max_retries: int = 3,
-    retry_delay: float = 1.0
+    retry_delay: int = 1,
+    temperature: float = 0.3
 ) -> Dict[str, Any]:
     """
     Send an image to Cohere API for analysis using the Chat V2 API.
@@ -108,6 +109,7 @@ def analyze_image_with_cohere(
         prompt: Prompt to send to the model
         max_retries: Maximum number of retries for transient errors
         retry_delay: Initial delay between retries (will be exponentially increased)
+        temperature: Temperature setting for the model (0.0-1.0, lower for more deterministic responses)
         
     Returns:
         Dict[str, Any]: The API response
@@ -153,7 +155,7 @@ def analyze_image_with_cohere(
             response = co.chat(
                 model=model_name,
                 messages=messages,
-                temperature=0.3,  # Lower temperature for more deterministic responses
+                temperature=temperature,  # Use the provided temperature parameter
             )
             
             # Extract the text response from the message content
@@ -213,7 +215,7 @@ def process_image_batch(
     prompt: str
 ) -> List[Dict]:
     """
-    Process a batch of images with the Cohere API.
+    Process a batch of images with the Cohere API for initial binary classification.
     
     Args:
         images: List of image dictionaries with filename, data, and mime_type
@@ -251,12 +253,65 @@ def process_image_batch(
         results.append({
             'filename': image['filename'],
             'thumbnail': thumbnail,
-            'full_image': base64_image,  # Add the full-size image
-            'mime_type': mime_type,      # Add the MIME type for proper display
+            'full_image': base64_image,
+            'mime_type': mime_type,
             'detection_result': detection_result,
             'success': analysis_result['success'],
-            'error': analysis_result.get('error', None) if not analysis_result['success'] else None,
-            'raw_response': analysis_result.get('raw_response', None) if analysis_result['success'] else None
+            'error': analysis_result.get('error', None),
+            'raw_response': analysis_result.get('raw_response', None)
         })
     
     return results
+
+def process_enhanced_analysis(
+    images: List[Dict], 
+    api_key: str, 
+    model_name: str, 
+    prompt: str
+) -> List[Dict]:
+    """
+    Process a batch of images with the Cohere API for enhanced detailed analysis.
+    This function is used for the second stage of analysis on positively identified images.
+    
+    Args:
+        images: List of image dictionaries from the initial analysis results
+        api_key: Cohere API key
+        model_name: Name of the Cohere model to use
+        prompt: Detailed analysis prompt to send to the model
+        
+    Returns:
+        List[Dict]: List of results with original image info and enhanced analysis results
+    """
+    enhanced_results = []
+    
+    for image in images:
+        logger.info(f"Performing enhanced analysis for image: {image['filename']}")
+        
+        # We already have the base64 image from the initial analysis
+        base64_image = image['full_image']
+        mime_type = image['mime_type']
+        
+        # Analyze the image with the enhanced prompt
+        analysis_result = analyze_image_with_cohere(
+            api_key=api_key,
+            base64_image=base64_image,
+            mime_type=mime_type,
+            model_name=model_name,
+            prompt=prompt,
+            temperature=0.7  # Higher temperature for more creative responses
+        )
+        
+        # Add to results
+        enhanced_results.append({
+            'filename': image['filename'],
+            'thumbnail': image['thumbnail'],
+            'full_image': base64_image,
+            'mime_type': mime_type,
+            'detection_result': image['detection_result'],  # Keep the original detection result
+            'enhanced_analysis': analysis_result['response'] if analysis_result['success'] else None,
+            'success': analysis_result['success'],
+            'error': analysis_result.get('error', None),
+            'raw_response': analysis_result.get('raw_response', None)
+        })
+    
+    return enhanced_results

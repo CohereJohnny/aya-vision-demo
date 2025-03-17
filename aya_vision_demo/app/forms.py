@@ -15,10 +15,24 @@ class SettingsForm(FlaskForm):
         validators=[DataRequired(), Length(min=2, max=50)],
         render_kw={"placeholder": "Enter what you're detecting (e.g., Flare, Building, Vehicle)"}
     )
-    prompt = TextAreaField(
-        'Master Prompt for Image Analysis',
+    initial_prompt = TextAreaField(
+        'Initial Analysis Prompt (Binary Classification)',
         validators=[DataRequired(), Length(min=10, max=1000)],
-        render_kw={"rows": 5, "placeholder": "Enter the prompt to send to the model for image analysis..."}
+        render_kw={"rows": 4, "placeholder": "Enter the prompt for initial binary classification (e.g., 'Is a flare burning in this image? Answer with only true or false.')"}
+    )
+    enhanced_prompt = TextAreaField(
+        'Enhanced Analysis Prompt (Detailed Description)',
+        validators=[DataRequired(), Length(min=10, max=1000)],
+        render_kw={"rows": 4, "placeholder": "Enter the prompt for enhanced analysis of positively identified images (e.g., 'Describe in detail what you see in this image, focusing on the flare.')"}
     )
     submit = SubmitField('Save Settings')
     reset = SubmitField('Reset to Default')
+
+class EnhancedAnalysisForm(FlaskForm):
+    """Form for triggering enhanced analysis."""
+    custom_prompt = TextAreaField(
+        'Custom Prompt for Enhanced Analysis',
+        validators=[DataRequired(), Length(min=10, max=1000)],
+        render_kw={"rows": 3, "placeholder": "Enter a custom prompt for enhanced analysis or use the default from settings..."}
+    )
+    submit = SubmitField('Start Enhanced Analysis')
