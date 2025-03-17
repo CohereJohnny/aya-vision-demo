@@ -3,7 +3,7 @@ import io
 import logging
 import os
 import time
-from typing import Dict, List, Tuple, Optional, Any
+from typing import Dict, List, Tuple, Optional, Any, Callable
 from PIL import Image
 import cohere
 from werkzeug.utils import secure_filename
@@ -212,7 +212,8 @@ def process_image_batch(
     images: List[Dict], 
     api_key: str, 
     model_name: str, 
-    prompt: str
+    prompt: str,
+    progress_callback: Optional[Callable[[int, str], None]] = None
 ) -> List[Dict]:
     """
     Process a batch of images with the Cohere API for initial binary classification.
@@ -222,13 +223,14 @@ def process_image_batch(
         api_key: Cohere API key
         model_name: Name of the Cohere model to use
         prompt: Prompt to send to the model
+        progress_callback: Optional callback function to report progress
         
     Returns:
         List[Dict]: List of results with original image info and analysis results
     """
     results = []
     
-    for image in images:
+    for i, image in enumerate(images):
         # Create a thumbnail
         thumbnail = create_thumbnail(image['data'])
         
@@ -260,6 +262,10 @@ def process_image_batch(
             'error': analysis_result.get('error', None),
             'raw_response': analysis_result.get('raw_response', None)
         })
+        
+        # Report progress if callback is provided - MOVED HERE to update after processing
+        if progress_callback:
+            progress_callback(i, image['filename'])
     
     return results
 
@@ -267,7 +273,8 @@ def process_enhanced_analysis(
     images: List[Dict], 
     api_key: str, 
     model_name: str, 
-    prompt: str
+    prompt: str,
+    progress_callback: Optional[Callable[[int, str], None]] = None
 ) -> List[Dict]:
     """
     Process a batch of images with the Cohere API for enhanced detailed analysis.
@@ -278,13 +285,14 @@ def process_enhanced_analysis(
         api_key: Cohere API key
         model_name: Name of the Cohere model to use
         prompt: Detailed analysis prompt to send to the model
+        progress_callback: Optional callback function to report progress
         
     Returns:
         List[Dict]: List of results with original image info and enhanced analysis results
     """
     enhanced_results = []
     
-    for image in images:
+    for i, image in enumerate(images):
         logger.info(f"Performing enhanced analysis for image: {image['filename']}")
         
         # We already have the base64 image from the initial analysis
@@ -313,5 +321,9 @@ def process_enhanced_analysis(
             'error': analysis_result.get('error', None),
             'raw_response': analysis_result.get('raw_response', None)
         })
+        
+        # Report progress if callback is provided
+        if progress_callback:
+            progress_callback(i, image['filename'])
     
     return enhanced_results

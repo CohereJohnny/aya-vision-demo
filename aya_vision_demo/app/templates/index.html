@@ -12,13 +12,22 @@
         background-color: #f8f9fa;
         cursor: pointer;
         transition: background-color 0.3s;
+        position: relative;
+        z-index: 10;
     }
     .dropzone:hover {
         background-color: #e9ecef;
+        border-color: #007bff;
     }
     .dropzone.highlight {
         border-color: #007bff;
         background-color: #e9ecef;
+    }
+    .dropzone * {
+        pointer-events: none; /* Ensure clicks go through to the dropzone */
+    }
+    .dropzone button {
+        pointer-events: auto; /* Allow button to be clickable */
     }
     .preview-container {
         display: flex;
@@ -212,20 +221,26 @@
         let progressTimeout;
         let lastProgressUpdate = 0;
         let stuckCounter = 0;
+        let progressPollInterval;
+        let currentProgressId = null;
         
         // Open file dialog when browse button is clicked
-        browseBtn.addEventListener('click', function() {
+        browseBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            console.log('Browse button clicked');
             fileInput.click();
         });
         
         // Handle file selection
         fileInput.addEventListener('change', function() {
+            console.log('File input changed:', this.files);
             handleFiles(this.files);
         });
         
         // Prevent default behavior for drag and drop
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
             dropzone.addEventListener(eventName, preventDefaults, false);
+            document.body.addEventListener(eventName, preventDefaults, false); // Also prevent on body
         });
         
         function preventDefaults(e) {
@@ -243,84 +258,139 @@
         });
         
         function highlight() {
+            console.log('Highlighting dropzone');
             dropzone.classList.add('highlight');
         }
         
         function unhighlight() {
+            console.log('Unhighlighting dropzone');
             dropzone.classList.remove('highlight');
         }
         
         // Handle dropped files
         dropzone.addEventListener('drop', function(e) {
+            console.log('Files dropped');
             const dt = e.dataTransfer;
             const files = dt.files;
             handleFiles(files);
         });
         
+        // Make the dropzone clickable to open file dialog
+        dropzone.addEventListener('click', function(e) {
+            // Only trigger if the click was directly on the dropzone (not on the button)
+            if (e.target === this) {
+                console.log('Dropzone clicked');
+                fileInput.click();
+            }
+        });
+        
         // Process the files
         function handleFiles(files) {
-            // Clear previous previews
-            previewContainer.innerHTML = '';
-            
-            // Update file count
-            fileCount.textContent = `${files.length} files selected`;
-            
-            // Create a new FileList to store the files
-            const dataTransfer = new DataTransfer();
-            
-            // Add files to the preview and to the dataTransfer
-            Array.from(files).forEach(file => {
-                // Check if the file is an image
-                if (!file.type.match('image.*')) {
+            try {
+                console.log('Handling files:', files);
+                // Clear previous previews
+                previewContainer.innerHTML = '';
+                
+                // Update file count
+                fileCount.textContent = `${files.length} files selected`;
+                
+                // Check if DataTransfer is supported
+                let dataTransfer;
+                try {
+                    dataTransfer = new DataTransfer();
+                } catch (e) {
+                    console.error('DataTransfer API not supported:', e);
+                    // Just store the files without using DataTransfer
+                    // The form will still work with the original file input
+                    Array.from(files).forEach(file => {
+                        // Check if the file is an image
+                        if (!file.type.match('image.*')) {
+                            return;
+                        }
+                        
+                        // Create preview
+                        createPreview(file);
+                    });
                     return;
                 }
                 
-                // Add to dataTransfer
-                dataTransfer.items.add(file);
-                
-                // Create preview
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    const preview = document.createElement('div');
-                    preview.className = 'preview-item';
-                    preview.innerHTML = `
-                        <img src="${e.target.result}" alt="${file.name}">
-                        <div class="remove-btn" data-name="${file.name}">×</div>
-                    `;
-                    previewContainer.appendChild(preview);
+                // Add files to the preview and to the dataTransfer
+                Array.from(files).forEach(file => {
+                    // Check if the file is an image
+                    if (!file.type.match('image.*')) {
+                        return;
+                    }
                     
-                    // Add event listener to remove button
-                    const removeBtn = preview.querySelector('.remove-btn');
-                    removeBtn.addEventListener('click', function() {
-                        const fileName = this.getAttribute('data-name');
-                        removeFile(fileName);
-                        preview.remove();
-                    });
-                };
-                reader.readAsDataURL(file);
-            });
-            
-            // Update the file input with the new FileList
-            fileInput.files = dataTransfer.files;
+                    // Add to dataTransfer
+                    dataTransfer.items.add(file);
+                    
+                    // Create preview
+                    createPreview(file);
+                });
+                
+                // Update the file input with the new FileList
+                fileInput.files = dataTransfer.files;
+            } catch (error) {
+                console.error('Error handling files:', error);
+                alert('There was an error processing your files. Please try again.');
+            }
+        }
+        
+        // Create a preview for a file
+        function createPreview(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const preview = document.createElement('div');
+                preview.className = 'preview-item';
+                preview.innerHTML = `
+                    <img src="${e.target.result}" alt="${file.name}">
+                    <div class="remove-btn" data-name="${file.name}">×</div>
+                `;
+                previewContainer.appendChild(preview);
+                
+                // Add event listener to remove button
+                const removeBtn = preview.querySelector('.remove-btn');
+                removeBtn.addEventListener('click', function() {
+                    const fileName = this.getAttribute('data-name');
+                    removeFile(fileName);
+                    preview.remove();
+                });
+            };
+            reader.readAsDataURL(file);
         }
         
         // Remove a file from the FileList
         function removeFile(fileName) {
-            const dt = new DataTransfer();
-            const files = fileInput.files;
-            
-            for (let i = 0; i < files.length; i++) {
-                const file = files[i];
-                if (file.name !== fileName) {
-                    dt.items.add(file);
+            try {
+                // Check if DataTransfer is supported
+                let dt;
+                try {
+                    dt = new DataTransfer();
+                } catch (e) {
+                    console.error('DataTransfer API not supported:', e);
+                    // Just update the file count
+                    const currentCount = parseInt(fileCount.textContent);
+                    fileCount.textContent = `${currentCount - 1} files selected`;
+                    return;
                 }
+                
+                const files = fileInput.files;
+                
+                for (let i = 0; i < files.length; i++) {
+                    const file = files[i];
+                    if (file.name !== fileName) {
+                        dt.items.add(file);
+                    }
+                }
+                
+                fileInput.files = dt.files;
+                fileCount.textContent = `${fileInput.files.length} files selected`;
+            } catch (error) {
+                console.error('Error removing file:', error);
             }
-            
-            fileInput.files = dt.files;
-            fileCount.textContent = `${fileInput.files.length} files selected`;
         }
         
-        // Format bytes to human-readable format
+        // Function to format bytes to human-readable format
         function formatBytes(bytes, decimals = 2) {
             if (bytes === 0) return '0 Bytes';
             
@@ -333,18 +403,83 @@
             return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
         }
         
-        // Format time to human-readable format
+        // Function to format time in seconds to human-readable format
         function formatTime(seconds) {
             if (seconds < 60) {
-                return `${Math.floor(seconds)}s`;
+                return Math.round(seconds) + ' sec';
             } else if (seconds < 3600) {
-                const minutes = Math.floor(seconds / 60);
-                const remainingSeconds = Math.floor(seconds % 60);
-                return `${minutes}m ${remainingSeconds}s`;
+                return Math.round(seconds / 60) + ' min';
             } else {
                 const hours = Math.floor(seconds / 3600);
-                const minutes = Math.floor((seconds % 3600) / 60);
-                return `${hours}h ${minutes}m`;
+                const minutes = Math.round((seconds % 3600) / 60);
+                return hours + ' hr ' + minutes + ' min';
+            }
+        }
+        
+        // Function to poll for analysis progress
+        function pollAnalysisProgress(progressId) {
+            if (!progressId) {
+                console.error('No progress ID provided for polling');
+                return;
+            }
+            
+            console.log(`Starting to poll for progress with ID: ${progressId}`);
+            currentProgressId = progressId;
+            
+            // Clear any existing interval
+            if (progressPollInterval) {
+                clearInterval(progressPollInterval);
+            }
+            
+            // Set up polling interval
+            progressPollInterval = setInterval(function() {
+                console.log(`Polling for progress: ${progressId}`);
+                fetch(`/api/analysis-progress/${progressId}`)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`Failed to fetch progress: ${response.status} ${response.statusText}`);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        console.log('Progress data received:', data);
+                        
+                        // Update progress bar - analysis phase is 50-100%
+                        const analysisPercent = data.percent || 0;
+                        const totalPercent = 50 + Math.floor(analysisPercent / 2); // Map 0-100 to 50-100
+                        
+                        console.log(`Analysis progress: ${analysisPercent}%, Total progress: ${totalPercent}%`);
+                        
+                        progressBar.style.width = totalPercent + '%';
+                        uploadPercentage.textContent = totalPercent + '%';
+                        
+                        // Update status message
+                        if (data.status === 'processing') {
+                            statusMessage.textContent = `Processing image ${data.completed} of ${data.total}: ${data.current_file}`;
+                        } else if (data.status === 'complete') {
+                            progressBar.style.width = '100%';
+                            uploadPercentage.textContent = '100%';
+                            statusMessage.textContent = 'Analysis complete. Redirecting...';
+                            clearInterval(progressPollInterval);
+                        }
+                        
+                        // If complete, clear the interval
+                        if (data.percent >= 100 || data.status === 'complete') {
+                            console.log('Progress complete, clearing interval');
+                            clearInterval(progressPollInterval);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error polling progress:', error);
+                    });
+            }, 1000); // Poll every second
+        }
+        
+        // Function to stop polling
+        function stopPolling() {
+            if (progressPollInterval) {
+                clearInterval(progressPollInterval);
+                progressPollInterval = null;
             }
         }
         
@@ -370,6 +505,9 @@
             // Reset progress tracking variables
             lastProgressUpdate = 0;
             stuckCounter = 0;
+            
+            // Stop any existing polling
+            stopPolling();
             
             // Create FormData object
             const formData = new FormData(form);
@@ -430,8 +568,8 @@
             // Track upload progress
             xhr.upload.addEventListener('progress', function(e) {
                 if (e.lengthComputable) {
-                    // Calculate percentage
-                    const percentComplete = Math.round((e.loaded / e.total) * 100);
+                    // Calculate percentage - upload is 50% of the total process
+                    const percentComplete = Math.round((e.loaded / e.total) * 50);
                     progressBar.style.width = percentComplete + '%';
                     uploadPercentage.textContent = percentComplete + '%';
                     
@@ -475,19 +613,8 @@
                 }
                 
                 statusMessage.textContent = 'Upload complete. Processing images...';
-                progressBar.classList.add('bg-success');
-                
-                // Start a processing progress simulation
-                let processingProgress = 90;
-                const processingInterval = setInterval(function() {
-                    if (processingProgress < 99) {
-                        processingProgress += 1;
-                        progressBar.style.width = processingProgress + '%';
-                        uploadPercentage.textContent = processingProgress + '%';
-                    } else {
-                        clearInterval(processingInterval);
-                    }
-                }, 1000);
+                progressBar.style.width = '50%';
+                uploadPercentage.textContent = '50%';
             });
             
             // Handle errors
@@ -499,12 +626,14 @@
                 
                 uploadStatus.classList.remove('alert-info');
                 uploadStatus.classList.add('alert-danger');
-                statusMessage.textContent = 'An error occurred during upload.';
+                statusMessage.textContent = 'Error uploading files. Please try again.';
+                
+                // Re-enable the upload button
                 uploadButton.disabled = false;
-                uploadButton.innerHTML = '<i class="fas fa-upload me-2"></i>Try Again';
+                uploadButton.innerHTML = 'Upload and Analyze';
             });
             
-            // Handle response
+            // Handle the response
             xhr.onreadystatechange = function() {
                 if (xhr.readyState === 4) {
                     // Clear the progress timeout
@@ -513,37 +642,63 @@
                     }
                     
                     if (xhr.status === 200) {
-                        // Check if response is JSON
                         try {
                             const response = JSON.parse(xhr.responseText);
-                            if (response.error) {
-                                // Show error
+                            console.log('Server response:', response);
+                            
+                            if (response.success) {
+                                // Start polling for analysis progress
+                                if (response.progress_id) {
+                                    console.log(`Received progress_id: ${response.progress_id}`);
+                                    pollAnalysisProgress(response.progress_id);
+                                    
+                                    // Set progress bar to 50% to indicate upload is complete
+                                    progressBar.style.width = '50%';
+                                    uploadPercentage.textContent = '50%';
+                                    statusMessage.textContent = 'Upload complete. Starting image analysis...';
+                                } else {
+                                    console.warn('No progress_id received from server');
+                                }
+                                
+                                // Redirect after a short delay
+                                setTimeout(function() {
+                                    console.log('Redirecting to results page');
+                                    window.location.href = response.redirect;
+                                }, 3000); // Increased delay to allow more time for progress updates
+                            } else {
                                 uploadStatus.classList.remove('alert-info');
                                 uploadStatus.classList.add('alert-danger');
-                                statusMessage.textContent = 'Error: ' + response.error;
+                                statusMessage.textContent = response.error || 'Error processing images. Please try again.';
+                                
+                                // Re-enable the upload button
                                 uploadButton.disabled = false;
-                                uploadButton.innerHTML = '<i class="fas fa-upload me-2"></i>Try Again';
-                            } else if (response.success && response.redirect) {
-                                // Successful upload with redirect URL
-                                statusMessage.textContent = 'Upload and processing complete! Redirecting...';
-                                window.location.href = response.redirect;
+                                uploadButton.innerHTML = 'Upload and Analyze';
                             }
                         } catch (e) {
-                            // Response is HTML, redirect to results page
-                            document.open();
-                            document.write(xhr.responseText);
-                            document.close();
+                            console.error('Error parsing response:', e);
+                            uploadStatus.classList.remove('alert-info');
+                            uploadStatus.classList.add('alert-danger');
+                            statusMessage.textContent = 'Error processing response. Please try again.';
+                            
+                            // Re-enable the upload button
+                            uploadButton.disabled = false;
+                            uploadButton.innerHTML = 'Upload and Analyze';
                         }
-                    } else if (xhr.status === 302) {
-                        // Handle redirect
-                        window.location.href = xhr.getResponseHeader('Location');
                     } else {
-                        // Show error
-                        uploadStatus.classList.remove('alert-info');
-                        uploadStatus.classList.add('alert-danger');
-                        statusMessage.textContent = 'Server error: ' + xhr.status;
+                        try {
+                            const response = JSON.parse(xhr.responseText);
+                            uploadStatus.classList.remove('alert-info');
+                            uploadStatus.classList.add('alert-danger');
+                            statusMessage.textContent = response.error || 'Error processing images. Please try again.';
+                        } catch (e) {
+                            uploadStatus.classList.remove('alert-info');
+                            uploadStatus.classList.add('alert-danger');
+                            statusMessage.textContent = 'Error processing images. Please try again.';
+                        }
+                        
+                        // Re-enable the upload button
                         uploadButton.disabled = false;
-                        uploadButton.innerHTML = '<i class="fas fa-upload me-2"></i>Try Again';
+                        uploadButton.innerHTML = 'Upload and Analyze';
                     }
                 }
             };

@@ -23,7 +23,16 @@ Error handling:
 Handle cases where the user uploads files that are not images.
 Handle cases where the user uploads too few or too many images (enforce the 40-50 image range). Provide clear error messages.
 Handle cases where the file size is too large (set a reasonable maximum file size limit per image and for the total upload).
-Progress Indicator: Display a progress bar or similar indicator during the upload and processing phase.
+Progress Tracking:
+Display a comprehensive progress tracking system that monitors both upload and analysis phases:
+  - Upload Phase (0-50%): Shows real-time upload progress with percentage, upload speed, and estimated time remaining.
+  - Analysis Phase (50-100%): Shows real-time analysis progress as each image is processed, with current image name and completion count.
+  - Status messages update dynamically to inform users about the current stage of processing.
+  - Progress bar advances incrementally as each image is analyzed, providing accurate visual feedback.
+  - Backend tracking system stores progress information for each batch with a unique progress ID.
+  - Frontend polls the server at regular intervals to retrieve the latest progress information.
+  - Handles potential network delays or processing bottlenecks with graceful UI updates.
+  - Provides clear indication when processing is complete before redirecting to results page.
 3.2 Two-Stage Analysis Pipeline:
 
 The application implements a two-stage analysis pipeline:
@@ -127,19 +136,24 @@ HTML, CSS, JavaScript. Consider a lightweight JavaScript library like Dropzone.j
 Bootstrap 5 for responsive layout and UI components.
 Font Awesome for icons and visual indicators.
 Custom JavaScript for interactive features and AJAX requests.
+Progress tracking using XMLHttpRequest for upload monitoring and fetch API for polling analysis progress.
 Backend:
 Python Flask framework.
 Cohere Python SDK (for interacting with the c4ai-aya-vision-32b model).
 Base64 encoding library (built-in to Python).
+In-memory progress tracking system with unique IDs for each batch of images.
+Progress callback mechanism for image processing functions.
 API Interaction:
 Use the Cohere Python SDK to make API calls.
 Asynchronous requests (consider using async and await if the Cohere SDK supports it, or threading/multiprocessing if not, to prevent blocking the main thread). This is important for handling the batch processing without freezing the UI.
-RESTful API endpoints for image analysis and deletion.
+RESTful API endpoints for image analysis, deletion, and progress tracking.
+Progress tracking API endpoint (/api/analysis-progress/<progress_id>) for retrieving real-time analysis status.
 Deployment (Initial):
 Local development environment (Flask's built-in development server).
 Future: Consider containerization (Docker) for easier deployment and portability.
 Data Storage: 
 In-memory storage for image analysis results (both initial and enhanced).
+In-memory storage for progress tracking information with unique progress IDs.
 Persistent storage (using Flask's session or a simple file-based solution) for user settings.
 5.  Prototype Scope and MVP (Minimum Viable Product)
 
@@ -154,6 +168,7 @@ Users can view full-size images by clicking on thumbnails.
 Users can delete individual images from the collection.
 Users can filter and sort images by detection status.
 Users can configure the detection subject and prompts used for both analysis stages.
+Comprehensive progress tracking for both upload and analysis phases, with real-time updates.
 Basic error handling is implemented.
 The following are NOT in the MVP, but are good candidates for future iterations:
 
@@ -179,4 +194,6 @@ Deployment: Explore deployment options like cloud platforms (AWS, GCP, Azure) fo
 Usability: Solution Engineers find the application easy to use and understand.
 Accuracy: The model correctly identifies objects in the images (qualitative assessment during demos).
 Performance: The application processes images and displays results within an acceptable timeframe (aim for a few seconds per image, but this depends on the Cohere API's latency).
+Progress Tracking: Users report satisfaction with the progress tracking system, finding it informative and accurate in representing both upload and analysis phases.
+User Confidence: The real-time progress updates increase user confidence in the application, reducing perceived wait times and uncertainty during processing.
 Value of Enhanced Analysis: The enhanced analysis provides meaningful and insightful information beyond the binary classification.

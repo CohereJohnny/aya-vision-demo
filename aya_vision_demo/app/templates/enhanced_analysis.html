@@ -64,6 +64,50 @@
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         margin-bottom: 30px;
     }
+    .progress-container {
+        display: none;
+        margin-top: 20px;
+        margin-bottom: 20px;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 15px;
+        background-color: #f8f9fa;
+    }
+    .progress {
+        height: 25px !important;
+        background-color: #e9ecef !important;
+        border-radius: 0.25rem !important;
+        overflow: hidden !important;
+        margin-bottom: 10px !important;
+        box-shadow: inset 0 1px 2px rgba(0,0,0,0.1) !important;
+    }
+    .progress-bar {
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: center !important;
+        overflow: hidden !important;
+        color: #fff !important;
+        text-align: center !important;
+        white-space: nowrap !important;
+        background-color: #0d6efd !important;
+        transition: width 0.6s ease !important;
+        min-width: 2% !important; /* Ensure it's always visible */
+        font-weight: bold !important;
+        font-size: 14px !important;
+    }
+    .progress-info {
+        text-align: center;
+        margin-top: 10px;
+        font-size: 1rem;
+        color: #495057;
+        font-weight: bold;
+    }
+    .analysis-status {
+        margin-top: 15px;
+        display: none;
+        font-size: 1rem;
+        border-left: 4px solid #0d6efd;
+    }
 </style>
 {% endblock %}
 
@@ -123,6 +167,19 @@
                         
                         <!-- Hidden input for selected images -->
                         <input type="hidden" name="selected_images" id="selected_images_input" value="">
+                        
+                        <div class="progress-container" id="progress-container">
+                            <div class="progress">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" style="width: 2% !important;" id="analysis-progress-bar"></div>
+                            </div>
+                            <div class="progress-info">
+                                <span id="analysis-percentage">0%</span> - <span id="analysis-status">Preparing analysis...</span>
+                            </div>
+                            <div class="analysis-status alert alert-info" id="analysis-status-alert">
+                                <i class="fas fa-spinner fa-spin me-2"></i>
+                                <span id="status-message" style="font-size: 1.1rem; font-weight: 500;">Preparing for enhanced analysis...</span>
+                            </div>
+                        </div>
                         
                         <div class="d-flex justify-content-between">
                             <a href="{{ url_for('main.results') }}" class="btn btn-secondary">
@@ -266,7 +323,176 @@
             });
         });
         
-        // No need to prevent form submission - let the form submit normally
+        // Handle form submission with progress tracking
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            if (selectedImages.size === 0) {
+                alert('Please select at least one image for enhanced analysis.');
+                return;
+            }
+            
+            // Disable the submit button
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Processing...';
+            
+            // Show progress elements
+            const progressContainer = document.getElementById('progress-container');
+            progressContainer.style.display = 'block';
+            
+            const analysisStatusAlert = document.getElementById('analysis-status-alert');
+            analysisStatusAlert.style.display = 'block';
+            
+            // Initialize progress bar with a small width
+            const progressBar = document.getElementById('analysis-progress-bar');
+            progressBar.setAttribute('style', 'width: 2% !important');
+            
+            const statusMessage = document.getElementById('status-message');
+            statusMessage.textContent = 'Starting enhanced analysis...';
+            
+            // Submit the form using AJAX
+            const formData = new FormData(form);
+            
+            // Create and configure XMLHttpRequest
+            const xhr = new XMLHttpRequest();
+            
+            // Handle the response
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === 4) {
+                    if (xhr.status === 200) {
+                        try {
+                            // Parse the JSON response
+                            const response = JSON.parse(xhr.responseText);
+                            console.log('Response received:', response);
+                            
+                            // Extract the progress ID from the response
+                            const progressId = response.progress_id;
+                            console.log('Progress ID:', progressId);
+                            
+                            if (progressId) {
+                                // Start polling for progress with the progress ID
+                                pollEnhancedAnalysisProgress(progressId);
+                            } else {
+                                throw new Error('No progress ID received from server');
+                            }
+                        } catch (e) {
+                            console.error('Error parsing response:', e);
+                            analysisStatusAlert.classList.remove('alert-info');
+                            analysisStatusAlert.classList.add('alert-danger');
+                            statusMessage.textContent = 'Error processing response. Please try again.';
+                            
+                            // Re-enable the submit button
+                            submitBtn.disabled = false;
+                            submitBtn.innerHTML = 'Start Enhanced Analysis';
+                        }
+                    } else {
+                        try {
+                            const response = JSON.parse(xhr.responseText);
+                            analysisStatusAlert.classList.remove('alert-info');
+                            analysisStatusAlert.classList.add('alert-danger');
+                            statusMessage.textContent = response.error || 'Error processing images. Please try again.';
+                        } catch (e) {
+                            analysisStatusAlert.classList.remove('alert-info');
+                            analysisStatusAlert.classList.add('alert-danger');
+                            statusMessage.textContent = 'Error processing images. Please try again.';
+                        }
+                        
+                        // Re-enable the submit button
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = 'Start Enhanced Analysis';
+                    }
+                }
+            };
+            
+            // Open and send the request
+            xhr.open('POST', form.action, true);
+            xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+            xhr.send(formData);
+        });
+        
+        // Function to poll for enhanced analysis progress
+        function pollEnhancedAnalysisProgress(progressId) {
+            console.log('Starting to poll for enhanced analysis progress with ID:', progressId);
+            
+            // Make sure progress elements are visible
+            const progressContainer = document.getElementById('progress-container');
+            progressContainer.style.display = 'block';
+            
+            const analysisStatusAlert = document.getElementById('analysis-status-alert');
+            analysisStatusAlert.style.display = 'block';
+            
+            // Get progress bar element
+            const progressBar = document.getElementById('analysis-progress-bar');
+            
+            // Initialize with a small width to make it visible
+            progressBar.style.width = '2%';
+            
+            // Update initial status message
+            const statusMessage = document.getElementById('status-message');
+            statusMessage.innerHTML = '<strong>Starting enhanced analysis...</strong>';
+            
+            // Set up polling interval
+            const progressInterval = setInterval(function() {
+                console.log('Polling for progress with URL:', '/api/enhanced-analysis-progress/' + progressId);
+                
+                fetch('/api/enhanced-analysis-progress/' + progressId)
+                    .then(response => {
+                        console.log('Progress response status:', response.status);
+                        if (!response.ok) {
+                            throw new Error(`Failed to fetch progress: ${response.status} ${response.statusText}`);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        console.log('Enhanced analysis progress data received:', data);
+                        
+                        // Update progress bar - use direct DOM manipulation
+                        const percentComplete = data.percent || 0;
+                        console.log('Setting progress bar width to:', percentComplete + '%');
+                        
+                        // Force the progress bar to update by directly setting the style
+                        document.getElementById('analysis-progress-bar').setAttribute('style', 'width: ' + percentComplete + '% !important');
+                        
+                        // Update percentage text
+                        const analysisPercentage = document.getElementById('analysis-percentage');
+                        analysisPercentage.textContent = percentComplete + '%';
+                        console.log('Updated percentage text to:', percentComplete + '%');
+                        
+                        // Update status message
+                        const statusMessage = document.getElementById('status-message');
+                        const analysisStatus = document.getElementById('analysis-status');
+                        
+                        if (data.status === 'processing') {
+                            // Create a more prominent status message that matches the server logs
+                            const logStyleMessage = `<strong>Enhanced Analysis Progress: ${data.completed}/${data.total} images processed (${percentComplete}%)</strong>`;
+                            const currentFileMessage = `<div>Current file: ${data.current_file}</div>`;
+                            
+                            statusMessage.innerHTML = logStyleMessage + currentFileMessage;
+                            analysisStatus.textContent = `Processing image ${data.completed} of ${data.total}`;
+                            console.log('Updated status message to match server logs');
+                        } else if (data.status === 'complete') {
+                            statusMessage.innerHTML = '<strong>Analysis complete. Redirecting...</strong>';
+                            analysisStatus.textContent = 'Complete';
+                            console.log('Analysis complete, will redirect soon');
+                            clearInterval(progressInterval);
+                            
+                            // Redirect to enhanced results page
+                            setTimeout(function() {
+                                window.location.href = '{{ url_for("main.enhanced_results") }}';
+                            }, 1000);
+                        }
+                        
+                        // If complete, clear the interval
+                        if (percentComplete >= 100 || data.status === 'complete') {
+                            console.log('Enhanced analysis progress complete, clearing interval');
+                            clearInterval(progressInterval);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error polling enhanced analysis progress:', error);
+                    });
+            }, 1000); // Poll every second
+        }
     });
 </script>
 {% endblock %} 

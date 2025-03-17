@@ -19,6 +19,9 @@ main_bp = Blueprint('main', __name__)
 # In-memory storage for results (in a production app, this would be a database)
 results_storage = {}
 enhanced_results_storage = {}
+# Add progress tracking storage
+analysis_progress = {}
+enhanced_analysis_progress = {}
 
 # Default settings
 DEFAULT_INITIAL_PROMPT = "Is a flare burning in this image? Answer with only 'true' or 'false'."
@@ -135,13 +138,40 @@ def index():
             # Get the custom prompt from session or use the default
             custom_prompt = session.get('custom_initial_prompt', current_app.config['PROMPT'])
             
+            # Generate a unique ID for this batch of results and progress tracking
+            result_id = str(uuid.uuid4())
+            progress_id = str(uuid.uuid4())
+            
+            # Initialize progress tracking
+            analysis_progress[progress_id] = {
+                'total': len(valid_files),
+                'completed': 0,
+                'current_file': '',
+                'status': 'processing',
+                'percent': 0
+            }
+            
+            # Define a progress callback function
+            def update_progress(index, filename):
+                completed = index + 1
+                analysis_progress[progress_id]['completed'] = completed
+                analysis_progress[progress_id]['current_file'] = filename
+                analysis_progress[progress_id]['percent'] = int((completed / len(valid_files)) * 100)
+                current_app.logger.info(f"Progress: {completed}/{len(valid_files)} images processed ({analysis_progress[progress_id]['percent']}%)")
+            
             # Process the batch of images using Cohere's Chat V2 API
             results = process_image_batch(
                 images=valid_files,
                 api_key=current_app.config['COHERE_API_KEY'],
                 model_name=current_app.config['MODEL_NAME'],
-                prompt=custom_prompt
+                prompt=custom_prompt,
+                progress_callback=update_progress
             )
+            
+            # Mark progress as complete
+            analysis_progress[progress_id]['status'] = 'complete'
+            analysis_progress[progress_id]['percent'] = 100
+            current_app.logger.info(f"Progress tracking complete: {progress_id}")
             
             # Log processing completion
             processing_time = time.time() - start_time
@@ -157,17 +187,15 @@ def index():
             
             current_app.logger.info(f"Results summary: {detected} {subject}{plural_suffix} detected, {not_detected} no {subject}{plural_suffix}, {unknown} unknown")
             
-            # Generate a unique ID for this batch of results
-            result_id = str(uuid.uuid4())
-            
             # Store results in server-side storage
             results_storage[result_id] = {
                 'results': results,
                 'subject': subject  # Store the subject with the results
             }
             
-            # Store only the result ID in the session
+            # Store IDs in the session
             session['result_id'] = result_id
+            session['progress_id'] = progress_id
             
             # Clear any existing enhanced results for this session
             if 'enhanced_result_id' in session:
@@ -181,7 +209,8 @@ def index():
                 time.sleep(1)
                 return jsonify({
                     'success': True,
-                    'redirect': url_for('main.results')
+                    'redirect': url_for('main.results'),
+                    'progress_id': progress_id
                 })
             return redirect(url_for('main.results'))
             
@@ -317,6 +346,9 @@ def enhanced_analysis():
     
     if form.validate_on_submit():
         try:
+            # Check if this is an AJAX request
+            is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+            
             # Get selected images indices from the form
             selected_images_str = request.form.get('selected_images', '')
             
@@ -338,7 +370,10 @@ def enhanced_analysis():
             
             # Check if we have any images to analyze
             if not images_to_analyze:
-                flash("No images selected for enhanced analysis.", 'warning')
+                error_msg = "No images selected for enhanced analysis."
+                if is_ajax:
+                    return jsonify({'error': error_msg}), 400
+                flash(error_msg, 'warning')
                 return render_template(
                     'enhanced_analysis.html', 
                     form=form, 
@@ -353,20 +388,44 @@ def enhanced_analysis():
             current_app.logger.info(f"Starting enhanced analysis for {len(images_to_analyze)} images")
             start_time = time.time()
             
+            # Generate a unique ID for this batch of enhanced results and progress tracking
+            enhanced_id = str(uuid.uuid4())
+            progress_id = str(uuid.uuid4())
+            
+            # Initialize progress tracking
+            enhanced_analysis_progress[progress_id] = {
+                'total': len(images_to_analyze),
+                'completed': 0,
+                'current_file': '',
+                'status': 'processing',
+                'percent': 0
+            }
+            
+            # Define a progress callback function
+            def update_progress(index, filename):
+                completed = index + 1
+                enhanced_analysis_progress[progress_id]['completed'] = completed
+                enhanced_analysis_progress[progress_id]['current_file'] = filename
+                enhanced_analysis_progress[progress_id]['percent'] = int((completed / len(images_to_analyze)) * 100)
+                current_app.logger.info(f"Enhanced Analysis Progress: {completed}/{len(images_to_analyze)} images processed ({enhanced_analysis_progress[progress_id]['percent']}%)")
+            
             # Process the selected images with enhanced analysis
             enhanced_results = process_enhanced_analysis(
                 images=images_to_analyze,
                 api_key=current_app.config['COHERE_API_KEY'],
                 model_name=current_app.config['MODEL_NAME'],
-                prompt=form.custom_prompt.data
+                prompt=form.custom_prompt.data,
+                progress_callback=update_progress
             )
+            
+            # Mark progress as complete
+            enhanced_analysis_progress[progress_id]['status'] = 'complete'
+            enhanced_analysis_progress[progress_id]['percent'] = 100
+            current_app.logger.info(f"Enhanced analysis progress tracking complete: {progress_id}")
             
             # Log processing completion
             processing_time = time.time() - start_time
             current_app.logger.info(f"Completed enhanced analysis in {processing_time:.2f} seconds")
-            
-            # Generate a unique ID for this batch of enhanced results
-            enhanced_id = str(uuid.uuid4())
             
             # Store enhanced results
             enhanced_results_storage[enhanced_id] = {
@@ -375,15 +434,25 @@ def enhanced_analysis():
                 'prompt': form.custom_prompt.data
             }
             
-            # Store the enhanced result ID in the session
+            # Store the enhanced result ID and progress ID in the session
             session['enhanced_result_id'] = enhanced_id
+            session['enhanced_progress_id'] = progress_id
             
-            # Redirect to enhanced results page
+            # Redirect to enhanced results page or return JSON response for AJAX
+            if is_ajax:
+                return jsonify({
+                    'success': True,
+                    'redirect': url_for('main.enhanced_results'),
+                    'progress_id': progress_id
+                })
             return redirect(url_for('main.enhanced_results'))
             
         except Exception as e:
             current_app.logger.error(f"Error during enhanced analysis: {str(e)}")
-            flash(f"An error occurred during enhanced analysis: {str(e)}", 'error')
+            error_msg = f"An error occurred during enhanced analysis: {str(e)}"
+            if is_ajax:
+                return jsonify({'error': error_msg}), 500
+            flash(error_msg, 'error')
             return render_template(
                 'enhanced_analysis.html', 
                 form=form, 
@@ -701,3 +770,58 @@ def api_delete_image(image_index):
     except Exception as e:
         current_app.logger.error(f"API Error deleting image: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
+
+@main_bp.route('/api/analysis-progress/<string:progress_id>', methods=['GET'])
+def get_analysis_progress(progress_id):
+    """
+    API endpoint to get the current progress of image analysis.
+    
+    Args:
+        progress_id: The ID of the analysis progress to retrieve
+        
+    Returns:
+        flask.Response: JSON response with progress information
+    """
+    # Get progress from storage
+    progress_data = analysis_progress.get(progress_id, {})
+    
+    # If no progress data found, return 404
+    if not progress_data:
+        current_app.logger.warning(f"Progress ID not found: {progress_id}")
+        return jsonify({'error': 'Progress ID not found'}), 404
+    
+    # Log the progress data
+    current_app.logger.debug(f"Progress data for {progress_id}: {progress_data}")
+    
+    # Return progress data
+    return jsonify(progress_data), 200
+
+@main_bp.route('/api/enhanced-analysis-progress/<string:progress_id>', methods=['GET'])
+def get_enhanced_analysis_progress(progress_id):
+    """
+    API endpoint to get the current progress of enhanced image analysis.
+    
+    Args:
+        progress_id: The ID of the enhanced analysis progress to retrieve
+        
+    Returns:
+        flask.Response: JSON response with progress information
+    """
+    # Get progress from storage
+    current_app.logger.info(f"Received request for enhanced analysis progress with ID: {progress_id}")
+    
+    # Log all available progress IDs for debugging
+    current_app.logger.info(f"Available enhanced analysis progress IDs: {list(enhanced_analysis_progress.keys())}")
+    
+    progress_data = enhanced_analysis_progress.get(progress_id, {})
+    
+    # If no progress data found, return 404
+    if not progress_data:
+        current_app.logger.warning(f"Enhanced analysis progress ID not found: {progress_id}")
+        return jsonify({'error': 'Progress ID not found'}), 404
+    
+    # Log the progress data
+    current_app.logger.info(f"Enhanced analysis progress data for {progress_id}: {progress_data}")
+    
+    # Return progress data
+    return jsonify(progress_data), 200
