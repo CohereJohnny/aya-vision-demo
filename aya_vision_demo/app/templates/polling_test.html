@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Polling Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .progress-bar { width: 100%; height: 30px; background: #eee; border: 1px solid #ccc; position: relative; margin-bottom: 10px; }
+        .progress-fill { height: 100%; background: #007bff; width: 0%; transition: width 0.3s; }
+        .progress-text { position: absolute; width: 100%; text-align: center; line-height: 30px; color: #333; font-weight: bold; }
+        .controls { margin: 15px 0; }
+        .log { font-family: monospace; font-size: 12px; background: #f5f5f5; padding: 10px; height: 300px; overflow-y: auto; margin-top: 20px; border: 1px solid #ddd; }
+        button { padding: 8px 12px; margin-right: 10px; cursor: pointer; }
+        .info { background-color: #e7f3fe; border-left: 4px solid #2196F3; padding: 10px; margin-bottom: 15px; }
+    </style>
+</head>
+<body>
+    <h1>Polling Test Page</h1>
+    
+    <div class="info">
+        <p>Testing polling for Progress ID: <strong id="current-id">{{ progress_id }}</strong></p>
+        <p>This page is designed to test the polling functionality without interference from other page elements.</p>
+    </div>
+    
+    <div class="progress-bar">
+        <div class="progress-fill" id="progress-fill"></div>
+        <div class="progress-text" id="progress-text">0%</div>
+    </div>
+    
+    <div class="controls">
+        <button onclick="startPolling()">Start Polling</button>
+        <button onclick="singlePoll()">Force Single Poll</button>
+        <button onclick="stopPolling()">Stop Polling</button>
+        <input type="checkbox" id="auto-advance" checked> 
+        <label for="auto-advance">Auto-advance (Test Mode)</label>
+    </div>
+    
+    <div class="log" id="log"></div>
+    
+    <script>
+        // Variables to control polling
+        let pollInterval;
+        let pollCount = 0;
+        let progressId = "{{ progress_id }}";
+        const log = document.getElementById("log");
+        
+        // Log messages with timestamp
+        function addLog(message) {
+            const now = new Date().toLocaleTimeString();
+            log.innerHTML += `[${now}] ${message}<br>`;
+            log.scrollTop = log.scrollHeight;
+        }
+        
+        // Update progress bar visually
+        function updateProgress(percent) {
+            document.getElementById("progress-fill").style.width = percent + "%";
+            document.getElementById("progress-text").innerText = percent + "%";
+        }
+        
+        // Make a single poll request
+        function singlePoll() {
+            pollCount++;
+            const timestamp = new Date().getTime();
+            const autoAdvance = document.getElementById("auto-advance").checked;
+            const url = `/api/test-polling/${progressId}?_=${timestamp}&count=${pollCount}&test_mode=${autoAdvance}`;
+            
+            addLog(`Poll #${pollCount}: Requesting ${url}...`);
+            
+            fetch(url, {
+                headers: {
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache'
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                addLog(`Poll #${pollCount}: Received ${data.percent}% (${data.completed}/${data.total})`);
+                updateProgress(data.percent);
+                
+                if (data.status === "complete") {
+                    addLog("Complete! Stopping polling.");
+                    stopPolling();
+                }
+            })
+            .catch(error => {
+                addLog(`Error: ${error.message}`);
+            });
+        }
+        
+        // Start polling at regular intervals
+        function startPolling() {
+            stopPolling();
+            addLog("Starting polling...");
+            singlePoll();
+            pollInterval = setInterval(singlePoll, 4000);
+        }
+        
+        // Stop any active polling
+        function stopPolling() {
+            if (pollInterval) {
+                clearInterval(pollInterval);
+                pollInterval = null;
+                addLog("Polling stopped");
+            }
+        }
+        
+        // Initialize the page
+        document.addEventListener("DOMContentLoaded", function() {
+            addLog(`Page loaded with progress ID: ${progressId}`);
+            if (progressId === "test") {
+                addLog("Using test progress ID. The server will auto-increment progress in test mode.");
+            }
+            
+            // Auto-start polling after a short delay
+            setTimeout(startPolling, 500);
+        });
+    </script>
+</body>
+</html> 

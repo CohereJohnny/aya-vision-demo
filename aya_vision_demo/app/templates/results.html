@@ -193,7 +193,7 @@
                 <h2><i class="fas fa-list me-2"></i>Detailed Results</h2>
                 <div class="filter-sort-controls">
                     <div class="dropdown">
-                        <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="filterDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                        <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="filterDropdown" data-bs-toggle="dropdown" aria-expanded="false" data-subject="{{ subject }}">
                             <i class="fas fa-filter"></i> Filter
                         </button>
                         <ul class="dropdown-menu" aria-labelledby="filterDropdown">
@@ -229,8 +229,8 @@
                 </a>
             </div>
         </div>
-        <div class="filter-info" id="filterInfo">
-            Showing all images, sorted by filename (A-Z)
+        <div id="filterInfo" class="filter-info">
+            <i class="fas fa-info-circle me-2"></i>Showing all images, sorted by filename (A-Z)
         </div>
         {% if results|selectattr('detection_result', 'equalto', true)|list|length > 0 %}
         <div class="alert alert-info mt-3">
@@ -243,14 +243,49 @@
     </div>
 </div>
 
+<!-- Debug Panel (only visible when debug is enabled) -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card debug-panel" id="filterDebugPanel">
+            <div class="card-header bg-dark text-white">
+                <h5 class="mb-0"><i class="fas fa-bug me-2"></i>Filtering and Sorting Debug</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Current Settings:</h6>
+                        <ul>
+                            <li><strong>Subject:</strong> <span id="debug-subject">{{ subject }}</span></li>
+                            <li><strong>Current Filter:</strong> <span id="debug-current-filter">all</span></li>
+                            <li><strong>Current Sort:</strong> <span id="debug-current-sort">filename-asc</span></li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Actions:</h6>
+                        <button id="debug-reset-filter" class="btn btn-sm btn-warning me-2">Reset Filters</button>
+                        <button id="debug-clear-session" class="btn btn-sm btn-danger me-2">Clear Session Storage</button>
+                        <button id="debug-refresh-page" class="btn btn-sm btn-primary">Reload Page</button>
+                    </div>
+                </div>
+                <hr>
+                <h6>Debug Log:</h6>
+                <div id="debug-log" class="debug-log p-2 bg-light" style="max-height: 200px; overflow-y: auto; font-family: monospace; font-size: 12px;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="row" id="results-container">
     {% for result in results %}
-    <div class="col-md-4 mb-4 result-item" data-index="{{ loop.index0 }}" data-flare="{{ result.detection_result|lower if result.detection_result is not none else 'unknown' }}" data-filename="{{ result.filename }}">
+    <div class="col-md-4 mb-4 result-item" data-index="{{ loop.index0 }}" 
+         data-detection-status="{{ result.detection_result|lower if result.detection_result is not none else 'unknown' }}" 
+         data-filename="{{ result.filename }}"
+         data-subject="{{ subject }}">
         <div class="card result-card">
             <img src="data:image/jpeg;base64,{{ result.thumbnail }}" class="thumbnail" alt="{{ result.filename }}" 
                  data-image="data:{{ result.mime_type }};base64,{{ result.full_image }}"
                  data-filename="{{ result.filename }}"
-                 data-flare="{{ result.detection_result|string|lower if result.detection_result is not none else 'unknown' }}"
+                 data-detection-status="{{ result.detection_result|string|lower if result.detection_result is not none else 'unknown' }}"
                  data-index="{{ loop.index0 }}">
             <div class="card-body">
                 <h5 class="card-title text-truncate" title="{{ result.filename }}">{{ result.filename }}</h5>
@@ -323,166 +358,235 @@
         </div>
     </div>
 </div>
+
+<!-- Toast Container for Notifications -->
+<div id="toast-container" class="position-fixed bottom-0 end-0 p-3" style="z-index: 9999;"></div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Store the subject for use in JavaScript
+        // Force CSS update for hidden items - adding this early and with !important
+        const style = document.createElement('style');
+        style.textContent = '.hidden-item { display: none !important; }';
+        document.head.appendChild(style);
+
+        console.log('DOM content loaded, initializing filtering/sorting...');
+        
+        // Subject for pluralization
         const subject = "{{ subject }}";
         
-        // Function to check if a word is already plural
-        function isPlural(word) {
-            // Common plural endings
-            const pluralEndings = ['s', 'es', 'ies', 'ves', 'en', 'a', 'i'];
+        // Handle pluralization for subject in the UI
+        function getPlural(word) {
+            // Simple pluralization - add 's' if the word doesn't end with 's'
+            return word.endsWith('s') ? '' : 's';
+        }
+        
+        // Update plural markers
+        const updatePluralMarkers = () => {
+            const elements = [
+                'detected-plural', 
+                'not-detected-plural',
+                'filter-detected-plural', 
+                'filter-not-detected-plural',
+                'alert-plural'
+            ];
             
-            // Check for irregular plurals
-            const irregularPlurals = {
-                'person': 'people',
-                'child': 'children',
-                'man': 'men',
-                'woman': 'women',
-                'tooth': 'teeth',
-                'foot': 'feet',
-                'mouse': 'mice',
-                'goose': 'geese'
+            elements.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = getPlural(subject);
+            });
+        };
+        
+        updatePluralMarkers();
+        
+        // Setup Debug Panel
+        const debugPanel = document.getElementById('filterDebugPanel');
+        const debugLog = document.getElementById('debug-log');
+        const resetFilterBtn = document.getElementById('debug-reset-filter');
+        const clearSessionBtn = document.getElementById('debug-clear-session');
+        const refreshPageBtn = document.getElementById('debug-refresh-page');
+        
+        // Show debug panel only if debug mode is enabled
+        const isDebug = localStorage.getItem('debug') === 'true';
+        if (debugPanel) {
+            debugPanel.style.display = isDebug ? 'block' : 'none';
+        }
+        
+        // Override console.log to capture logs for debug panel
+        if (debugLog) {
+            const originalLog = console.log;
+            const originalWarn = console.warn;
+            const originalError = console.error;
+            
+            // Helper to add log to debug panel
+            function addLogToPanel(level, ...args) {
+                const logItem = document.createElement('div');
+                const timestamp = new Date().toISOString().split('T')[1].split('.')[0];
+                
+                let logClass = 'text-dark';
+                if (level === 'WARN') logClass = 'text-warning';
+                if (level === 'ERROR') logClass = 'text-danger';
+                
+                const message = args.map(arg => {
+                    if (typeof arg === 'object') {
+                        try {
+                            return JSON.stringify(arg);
+                        } catch (e) {
+                            return String(arg);
+                        }
+                    }
+                    return String(arg);
+                }).join(' ');
+                
+                logItem.innerHTML = `<span class="text-secondary">[${timestamp}]</span> <span class="${logClass}">[${level}]</span> ${message}`;
+                debugLog.appendChild(logItem);
+                debugLog.scrollTop = debugLog.scrollHeight;
+                
+                // Update debug info
+                updateDebugInfo();
+            }
+            
+            // Override console methods
+            console.log = function(...args) {
+                originalLog.apply(console, args);
+                if (isDebug) addLogToPanel('INFO', ...args);
             };
             
-            // Check if it's an irregular plural
-            for (const [singular, plural] of Object.entries(irregularPlurals)) {
-                if (word.toLowerCase() === plural) {
-                    return true;
-                }
-            }
+            console.warn = function(...args) {
+                originalWarn.apply(console, args);
+                if (isDebug) addLogToPanel('WARN', ...args);
+            };
             
-            // Check for common plural endings
-            for (const ending of pluralEndings) {
-                if (word.toLowerCase().endsWith(ending) && 
-                    // Special cases for words that end in 's' but aren't plural
-                    !['lens', 'bus', 'gas', 'bias', 'atlas', 'virus', 'campus'].includes(word.toLowerCase())) {
-                    return true;
-                }
-            }
-            
-            return false;
+            console.error = function(...args) {
+                originalError.apply(console, args);
+                if (isDebug) addLogToPanel('ERROR', ...args);
+            };
         }
         
-        // Function to get plural form of a word
-        function getPlural(word) {
-            return isPlural(word) ? '' : 's';
-        }
+        // Direct implementations of filtering and sorting 
+        // - Not relying on main.js to solve the problem directly
+        console.log('Setting up direct filtering and sorting functionality');
         
-        // Set plural markers in the UI
-        document.getElementById('detected-plural').textContent = getPlural(subject);
-        document.getElementById('not-detected-plural').textContent = getPlural(subject);
-        document.getElementById('filter-detected-plural').textContent = getPlural(subject);
-        document.getElementById('filter-not-detected-plural').textContent = getPlural(subject);
-        
-        // Check if alert-plural element exists and set it
-        const alertPluralElement = document.getElementById('alert-plural');
-        if (alertPluralElement) {
-            alertPluralElement.textContent = getPlural(subject);
-        }
-        
-        // Get the delete buttons
-        const deleteButtons = document.querySelectorAll('.delete-image-btn');
-        const deleteModal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
-        const filenameToDelete = document.getElementById('filename-to-delete');
-        const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
-        
-        // Full image modal elements
-        const imageModal = new bootstrap.Modal(document.getElementById('imageModal'));
-        const fullImage = document.getElementById('fullImage');
-        const imageFilename = document.getElementById('imageFilename');
-        const imageFlareStatus = document.getElementById('imageFlareStatus');
-        const modalDeleteBtn = document.getElementById('modal-delete-btn');
-        
-        // Filter and sort elements
-        const filterDropdownItems = document.querySelectorAll('[data-filter]');
-        const sortDropdownItems = document.querySelectorAll('[data-sort]');
-        const filterDropdownButton = document.getElementById('filterDropdown');
-        const sortDropdownButton = document.getElementById('sortDropdown');
+        // Get filter and sort elements
+        const filterDropdown = document.getElementById('filterDropdown');
+        const sortDropdown = document.getElementById('sortDropdown');
         const filterInfoText = document.getElementById('filterInfo');
+        const resultsContainer = document.getElementById('results-container');
         
-        // Current filter and sort state
-        let currentFilter = 'all';
-        let currentSort = 'filename-asc';
+        // Check if required elements exist
+        if (!filterDropdown) console.error('Filter dropdown not found');
+        if (!sortDropdown) console.error('Sort dropdown not found');
+        if (!filterInfoText) console.warn('Filter info text element not found');
+        if (!resultsContainer) console.error('Results container not found');
         
-        // Apply filter and sort
-        function applyFilterAndSort() {
-            const resultItems = document.querySelectorAll('.result-item');
-            
-            // Update filter info text
-            updateFilterInfoText();
-            
-            // First, filter the items
-            resultItems.forEach(item => {
-                const flareStatus = item.getAttribute('data-flare');
-                
-                if (currentFilter === 'all' || flareStatus === currentFilter) {
-                    item.classList.remove('hidden-item');
-                } else {
-                    item.classList.add('hidden-item');
-                }
-            });
-            
-            // Then, sort the visible items
-            const resultsContainer = document.getElementById('results-container');
-            const visibleItems = Array.from(resultItems).filter(item => !item.classList.contains('hidden-item'));
-            
-            visibleItems.sort((a, b) => {
-                if (currentSort === 'filename-asc') {
-                    return a.getAttribute('data-filename').localeCompare(b.getAttribute('data-filename'));
-                } else if (currentSort === 'filename-desc') {
-                    return b.getAttribute('data-filename').localeCompare(a.getAttribute('data-filename'));
-                } else if (currentSort === 'status-asc') {
-                    // Sort order: false, unknown, true
-                    const aFlare = a.getAttribute('data-flare');
-                    const bFlare = b.getAttribute('data-flare');
-                    
-                    if (aFlare === bFlare) return 0;
-                    if (aFlare === 'false') return -1;
-                    if (bFlare === 'false') return 1;
-                    if (aFlare === 'unknown') return -1;
-                    if (bFlare === 'unknown') return 1;
-                    return 0;
-                } else if (currentSort === 'status-desc') {
-                    // Sort order: true, unknown, false
-                    const aFlare = a.getAttribute('data-flare');
-                    const bFlare = b.getAttribute('data-flare');
-                    
-                    if (aFlare === bFlare) return 0;
-                    if (aFlare === 'true') return -1;
-                    if (bFlare === 'true') return 1;
-                    if (aFlare === 'unknown') return -1;
-                    if (bFlare === 'unknown') return 1;
-                    return 0;
-                }
-                return 0;
-            });
-            
-            // Reorder the DOM elements
-            visibleItems.forEach(item => {
-                resultsContainer.appendChild(item);
-            });
-            
-            // Save filter and sort state to sessionStorage
-            sessionStorage.setItem('currentFilter', currentFilter);
-            sessionStorage.setItem('currentSort', currentSort);
+        // Get filter and sort items
+        const filterItems = filterDropdown ? filterDropdown.querySelectorAll('.dropdown-item') : [];
+        const sortItems = sortDropdown ? sortDropdown.querySelectorAll('.dropdown-item') : [];
+        
+        console.log(`Found ${filterItems.length} filter items and ${sortItems.length} sort items`);
+        
+        // Get result items directly - using the class that matches our elements
+        const resultItems = document.querySelectorAll('.result-item');
+        console.log(`Found ${resultItems.length} result items`);
+        
+        // Validate stored values - ensuring we don't have corrupted data
+        function validateStoredFilter(value) {
+            const validValues = ['all', 'detected', 'not-detected', 'unknown'];
+            return validValues.includes(value) ? value : 'all';
         }
         
-        // Update filter info text
+        function validateStoredSort(value) {
+            const validValues = ['filename-asc', 'filename-desc', 'status-asc', 'status-desc'];
+            return validValues.includes(value) ? value : 'filename-asc';
+        }
+        
+        // Initialize from session storage if available
+        let currentFilter = validateStoredFilter(sessionStorage.getItem('currentFilter') || 'all');
+        let currentSort = validateStoredSort(sessionStorage.getItem('currentSort') || 'filename-asc');
+        
+        console.log('Initial filter:', currentFilter);
+        console.log('Initial sort:', currentSort);
+            
+        /**
+         * Gets the current subject from the DOM
+         */
+        function getSubjectFromDom() {
+            // Try multiple sources to get the subject reliably
+            
+            // First try: get from dropdown button with data-subject
+            if (filterDropdown) {
+                const fromDropdown = filterDropdown.getAttribute('data-subject');
+                if (fromDropdown) {
+                    console.log('Got subject from dropdown:', fromDropdown);
+                    return fromDropdown;
+                }
+            }
+            
+            // Second try: get from result items if available
+            if (resultItems.length > 0) {
+                const fromItem = resultItems[0].getAttribute('data-subject');
+                if (fromItem) {
+                    console.log('Got subject from first result item:', fromItem);
+                    return fromItem;
+                }
+            }
+            
+            // Third try: use the subject variable from the template
+            if (subject) {
+                console.log('Using subject from template variable:', subject);
+                return subject;
+            }
+            
+            // Fallback
+            console.log('Using fallback subject: "item"');
+            return 'item';
+        }
+
+        /**
+         * Updates the debug info panel
+         */
+        function updateDebugInfo() {
+            if (!isDebug) return;
+            
+            if (document.getElementById('debug-subject')) {
+                document.getElementById('debug-subject').textContent = getSubjectFromDom();
+            }
+            
+            if (document.getElementById('debug-current-filter')) {
+                document.getElementById('debug-current-filter').textContent = currentFilter;
+            }
+            
+            if (document.getElementById('debug-current-sort')) {
+                document.getElementById('debug-current-sort').textContent = currentSort;
+            }
+        }
+        
+        /**
+         * Updates the filter info text based on current selections
+         */
         function updateFilterInfoText() {
+            if (!filterInfoText) {
+                console.warn('Filter info text element not found');
+                return;
+            }
+            
             let filterText = '';
             let sortText = '';
+            
+            // Get subject from the DOM
+            const subject = getSubjectFromDom();
+            
+            // Handle pluralization
+            const pluralSuffix = subject.endsWith('s') ? '' : 's';
             
             // Get filter text
             if (currentFilter === 'all') {
                 filterText = 'all images';
             } else if (currentFilter === 'detected') {
-                filterText = `images with ${subject}${getPlural(subject)} detected`;
+                filterText = `images with ${subject}${pluralSuffix} detected`;
             } else if (currentFilter === 'not-detected') {
-                filterText = `images with no ${subject}${getPlural(subject)}`;
+                filterText = `images with no ${subject}${pluralSuffix}`;
             } else if (currentFilter === 'unknown') {
                 filterText = 'images with unknown status';
             }
@@ -499,258 +603,318 @@
             }
             
             // Update the info text
-            filterInfoText.textContent = `Showing ${filterText}, sorted by ${sortText}`;
+            const newText = `Showing ${filterText}, sorted by ${sortText}`;
+            console.log('Updating filter info text:', newText);
+            filterInfoText.textContent = newText;
         }
         
-        // Handle filter dropdown clicks
-        filterDropdownItems.forEach(item => {
-            item.addEventListener('click', function(e) {
-                e.preventDefault();
-                
-                // Update active class
-                filterDropdownItems.forEach(i => i.classList.remove('active-option'));
-                this.classList.add('active-option');
-                
-                // Update current filter
-                currentFilter = this.getAttribute('data-filter');
-                
-                // Apply filter and sort
-                applyFilterAndSort();
-            });
-        });
-        
-        // Handle sort dropdown clicks
-        sortDropdownItems.forEach(item => {
-            item.addEventListener('click', function(e) {
-                e.preventDefault();
-                
-                // Update active class
-                sortDropdownItems.forEach(i => i.classList.remove('active-option'));
-                this.classList.add('active-option');
-                
-                // Update current sort
-                currentSort = this.getAttribute('data-sort');
-                
-                // Apply filter and sort
-                applyFilterAndSort();
-            });
-        });
-        
-        // Load saved filter and sort state from sessionStorage
-        const savedFilter = sessionStorage.getItem('currentFilter');
-        const savedSort = sessionStorage.getItem('currentSort');
-        
-        if (savedFilter) {
-            currentFilter = savedFilter;
-            // Update active class in dropdown
-            filterDropdownItems.forEach(item => {
-                if (item.getAttribute('data-filter') === currentFilter) {
+        /**
+         * Updates the active classes on filter and sort items
+         */
+        function updateActiveClasses() {
+            // Update filter active class
+            filterItems.forEach(item => {
+                if (item.dataset.filter === currentFilter) {
                     item.classList.add('active-option');
+                    console.log(`Set active filter option: ${item.dataset.filter}`);
+                } else {
+                    item.classList.remove('active-option');
+                }
+            });
+            
+            // Update sort active class
+            sortItems.forEach(item => {
+                if (item.dataset.sort === currentSort) {
+                    item.classList.add('active-option');
+                    console.log(`Set active sort option: ${item.dataset.sort}`);
                 } else {
                     item.classList.remove('active-option');
                 }
             });
         }
         
-        if (savedSort) {
-            currentSort = savedSort;
-            // Update active class in dropdown
-            sortDropdownItems.forEach(item => {
-                if (item.getAttribute('data-sort') === currentSort) {
-                    item.classList.add('active-option');
+        /**
+         * Applies both filtering and sorting based on current selections
+         */
+        function applyFilterAndSort() {
+            console.log('Applying filter:', currentFilter, 'and sort:', currentSort);
+            
+            // Get the current subject
+            const subject = getSubjectFromDom();
+            console.log('Current subject:', subject);
+            
+            // First, filter the items
+            let visibleCount = 0;
+            let hiddenCount = 0;
+            
+            resultItems.forEach(item => {
+                const detectionStatus = item.getAttribute('data-detection-status');
+                const filename = item.getAttribute('data-filename');
+                
+                console.log(`Filtering item: ${filename}, status: ${detectionStatus}, filter: ${currentFilter}`);
+                
+                let visible = false;
+                
+                // Main filtering logic
+                if (currentFilter === 'all') {
+                    visible = true;
+                } else if (currentFilter === 'detected' && detectionStatus === 'true') {
+                    visible = true;
+                } else if (currentFilter === 'not-detected' && detectionStatus === 'false') {
+                    visible = true;
+                } else if (currentFilter === 'unknown' && detectionStatus === 'unknown') {
+                    visible = true;
+                }
+                
+                // Apply visibility
+                if (visible) {
+                    console.log(`  - Showing item: ${filename} (matches filter: ${currentFilter})`);
+                    item.classList.remove('hidden-item');
+                    visibleCount++;
                 } else {
-                    item.classList.remove('active-option');
+                    console.log(`  - Hiding item: ${filename} (doesn't match filter: ${currentFilter})`);
+                    item.classList.add('hidden-item');
+                    hiddenCount++;
                 }
             });
+            
+            console.log(`Filtering complete: ${visibleCount} visible items, ${hiddenCount} hidden items`);
+            
+            // Count visible items after filtering
+            const visibleItems = Array.from(resultItems).filter(item => !item.classList.contains('hidden-item'));
+            console.log(`Filtered to ${visibleItems.length} visible items`);
+            
+            // Then, sort the visible items
+            if (resultsContainer) {
+                console.log('Sorting visible items');
+                visibleItems.sort((a, b) => {
+                    if (currentSort === 'filename-asc') {
+                        return a.getAttribute('data-filename').localeCompare(b.getAttribute('data-filename'));
+                    } else if (currentSort === 'filename-desc') {
+                        return b.getAttribute('data-filename').localeCompare(a.getAttribute('data-filename'));
+                    } else if (currentSort === 'status-asc') {
+                        // Sort order: false, unknown, true
+                        const aStatus = a.getAttribute('data-detection-status');
+                        const bStatus = b.getAttribute('data-detection-status');
+                        
+                        if (aStatus === bStatus) return 0;
+                        if (aStatus === 'false') return -1;
+                        if (bStatus === 'false') return 1;
+                        if (aStatus === 'unknown') return -1;
+                        if (bStatus === 'unknown') return 1;
+                        return 0;
+                    } else if (currentSort === 'status-desc') {
+                        // Sort order: true, unknown, false
+                        const aStatus = a.getAttribute('data-detection-status');
+                        const bStatus = b.getAttribute('data-detection-status');
+                        
+                        if (aStatus === bStatus) return 0;
+                        if (aStatus === 'true') return -1;
+                        if (bStatus === 'true') return 1;
+                        if (aStatus === 'unknown') return -1;
+                        if (bStatus === 'unknown') return 1;
+                        return 0;
+                    }
+                    return 0;
+                });
+                
+                // Reorder the DOM elements
+                console.log('Reordering DOM elements');
+                visibleItems.forEach(item => {
+                    resultsContainer.appendChild(item);
+                });
+            }
+            
+            // Update filter info text
+            updateFilterInfoText();
+            
+            // Update debug info
+            updateDebugInfo();
         }
         
         // Apply initial filter and sort
         applyFilterAndSort();
         
-        // Handle thumbnail click to show full image
-        document.querySelectorAll('.thumbnail').forEach(thumbnail => {
-            thumbnail.addEventListener('click', function(e) {
-                // Prevent any default behavior or event propagation
+        // Update active classes
+        updateActiveClasses();
+        
+        // Setup debug button actions
+        if (resetFilterBtn) {
+            resetFilterBtn.addEventListener('click', function() {
+                console.log('Debug action: Resetting filters');
+                sessionStorage.setItem('currentFilter', 'all');
+                sessionStorage.setItem('currentSort', 'filename-asc');
+                currentFilter = 'all';
+                currentSort = 'filename-asc';
+                updateActiveClasses();
+                applyFilterAndSort();
+                console.log('Filters reset to defaults');
+            });
+        }
+        
+        if (clearSessionBtn) {
+            clearSessionBtn.addEventListener('click', function() {
+                console.log('Debug action: Clearing session storage');
+                sessionStorage.clear();
+                currentFilter = 'all';
+                currentSort = 'filename-asc';
+                updateActiveClasses();
+                applyFilterAndSort();
+                console.log('Session storage cleared');
+            });
+        }
+        
+        if (refreshPageBtn) {
+            refreshPageBtn.addEventListener('click', function() {
+                console.log('Debug action: Refreshing page');
+                window.location.reload();
+            });
+        }
+        
+        // Add event listeners to filter and sort options
+        filterItems.forEach(item => {
+            item.addEventListener('click', function(e) {
                 e.preventDefault();
-                e.stopPropagation();
                 
-                const imageUrl = this.getAttribute('data-image');
-                const filename = this.getAttribute('data-filename');
-                const flareStatus = this.getAttribute('data-flare');
-                const index = this.getAttribute('data-index');
+                console.log('Filter clicked:', this.dataset.filter);
                 
-                console.log("Detection status:", flareStatus); // Debug log
+                // Update current filter
+                currentFilter = this.dataset.filter;
                 
-                // Set the image source and details
-                fullImage.src = imageUrl;
-                imageFilename.textContent = filename;
+                // Update active classes
+                updateActiveClasses();
                 
-                // Set the detection status with appropriate styling
-                if (flareStatus === 'true') {
-                    imageFlareStatus.innerHTML = `<span class="result-true"><i class="fas fa-check-circle"></i> ${subject} Detected: Yes</span>`;
-                } else if (flareStatus === 'false') {
-                    imageFlareStatus.innerHTML = `<span class="result-false"><i class="fas fa-times-circle"></i> ${subject} Detected: No</span>`;
-                } else {
-                    imageFlareStatus.innerHTML = `<span class="result-unknown"><i class="fas fa-question-circle"></i> ${subject} Detected: Unknown</span>`;
-                }
+                // Apply filter and sort
+                applyFilterAndSort();
                 
-                // Set the delete button's data-index attribute
-                modalDeleteBtn.setAttribute('data-index', index);
-                modalDeleteBtn.setAttribute('data-filename', filename);
-                
-                // Show the modal
-                imageModal.show();
+                // Save to session storage
+                sessionStorage.setItem('currentFilter', currentFilter);
             });
         });
         
-        // Handle delete button in the full image modal
-        modalDeleteBtn.addEventListener('click', function() {
-            const index = this.getAttribute('data-index');
-            const filename = this.getAttribute('data-filename');
-            
-            // Hide the image modal
-            imageModal.hide();
-            
-            // Set the filename in the confirmation modal
-            filenameToDelete.textContent = filename;
-            
-            // Set the index on the confirm button
-            confirmDeleteBtn.setAttribute('data-index', index);
-            
-            // Show the confirmation modal
-            deleteModal.show();
-        });
-        
-        // Add click event to delete buttons
-        deleteButtons.forEach(button => {
-            button.addEventListener('click', function() {
-                const index = this.getAttribute('data-index');
-                const filename = this.getAttribute('data-filename');
+        sortItems.forEach(item => {
+            item.addEventListener('click', function(e) {
+                e.preventDefault();
                 
-                // Set the filename in the modal
-                filenameToDelete.textContent = filename;
+                console.log('Sort clicked:', this.dataset.sort);
                 
-                // Set the index on the confirm button
-                confirmDeleteBtn.setAttribute('data-index', index);
+                // Update current sort
+                currentSort = this.dataset.sort;
                 
-                // Show the modal
-                deleteModal.show();
+                // Update active classes
+                updateActiveClasses();
+                
+                // Apply filter and sort
+                applyFilterAndSort();
+                
+                // Save to session storage
+                sessionStorage.setItem('currentSort', currentSort);
             });
         });
         
-        // Handle confirm delete button click
-        confirmDeleteBtn.addEventListener('click', function() {
-            const index = this.getAttribute('data-index');
+        // Add toggle button for debug mode to Nav
+        const navbarNav = document.querySelector('.navbar-nav');
+        if (navbarNav) {
+            const debugToggleLi = navbarNav.querySelector('.debug-toggle-li');
             
-            // Send delete request to the server
-            fetch(`/api/delete_image/${index}`, {
-                method: 'DELETE'
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    // Hide the modal
-                    deleteModal.hide();
+            if (!debugToggleLi) {
+                const debugToggleItem = document.createElement('li');
+                debugToggleItem.className = 'nav-item debug-toggle-li';
+                
+                const debugToggleLink = document.createElement('a');
+                debugToggleLink.className = 'nav-link debug-toggle';
+                debugToggleLink.href = '#';
+                debugToggleLink.innerHTML = `<i class="fas ${isDebug ? 'fa-toggle-on' : 'fa-toggle-off'}"></i> Debug`;
+                
+                debugToggleLink.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const newDebugState = localStorage.getItem('debug') !== 'true';
+                    localStorage.setItem('debug', newDebugState);
                     
-                    // Find the element to remove
-                    const elementToRemove = document.querySelector(`.result-item[data-index="${index}"]`);
+                    // Update UI
+                    this.innerHTML = `<i class="fas ${newDebugState ? 'fa-toggle-on' : 'fa-toggle-off'}"></i> Debug`;
+                    if (debugPanel) {
+                        debugPanel.style.display = newDebugState ? 'block' : 'none';
+                    }
                     
-                    // Check if the element has a flare or not
-                    const hasFlare = elementToRemove.getAttribute('data-flare') === 'true';
+                    console.log(`Debug mode ${newDebugState ? 'enabled' : 'disabled'}`);
                     
-                    // Add animation class
-                    elementToRemove.classList.add('image-removed');
-                    
-                    // Remove the element after animation completes
-                    setTimeout(() => {
-                        elementToRemove.remove();
-                        
-                        // Update the counts
-                        updateCounts(data.remaining_count, hasFlare);
-                        
-                        // Show a toast or notification
-                        showNotification(data.message, 'success');
-                    }, 500);
-                } else {
-                    // Hide the modal
-                    deleteModal.hide();
-                    
-                    // Show error notification
-                    showNotification(`Error: ${data.error}`, 'danger');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                deleteModal.hide();
-                showNotification('An error occurred while deleting the image.', 'danger');
-            });
-        });
-        
-        // Function to update the counts in the summary
-        function updateCounts(totalRemaining, wasFlare) {
-            const totalImagesCount = document.getElementById('total-count');
-            const detectedCount = document.getElementById('detected-count');
-            const notDetectedCount = document.getElementById('not-detected-count');
-            const unknownCount = document.getElementById('unknown-count');
-            
-            // Update total count
-            totalImagesCount.textContent = totalRemaining;
-            
-            // Update detection counts if we know the status
-            if (wasFlare !== undefined) {
-                if (wasFlare) {
-                    detectedCount.textContent = parseInt(detectedCount.textContent) - 1;
-                } else {
-                    notDetectedCount.textContent = parseInt(notDetectedCount.textContent) - 1;
-                }
+                    // Refresh to apply debug mode changes
+                    window.location.reload();
+                });
+                
+                debugToggleItem.appendChild(debugToggleLink);
+                navbarNav.appendChild(debugToggleItem);
             }
         }
         
-        // Function to show a notification
-        function showNotification(message, type) {
-            // Create a toast element
-            const toastContainer = document.createElement('div');
-            toastContainer.className = 'position-fixed bottom-0 end-0 p-3';
-            toastContainer.style.zIndex = '5';
+        // Log initial state if debug mode is active
+        if (isDebug) {
+            console.log('Debug mode is active');
+            console.log('Subject:', subject);
             
-            const toastElement = document.createElement('div');
-            toastElement.className = `toast align-items-center text-white bg-${type} border-0`;
-            toastElement.setAttribute('role', 'alert');
-            toastElement.setAttribute('aria-live', 'assertive');
-            toastElement.setAttribute('aria-atomic', 'true');
-            
-            const toastBody = document.createElement('div');
-            toastBody.className = 'd-flex';
-            
-            const toastContent = document.createElement('div');
-            toastContent.className = 'toast-body';
-            toastContent.textContent = message;
-            
-            const closeButton = document.createElement('button');
-            closeButton.type = 'button';
-            closeButton.className = 'btn-close btn-close-white me-2 m-auto';
-            closeButton.setAttribute('data-bs-dismiss', 'toast');
-            closeButton.setAttribute('aria-label', 'Close');
-            
-            toastBody.appendChild(toastContent);
-            toastBody.appendChild(closeButton);
-            toastElement.appendChild(toastBody);
-            toastContainer.appendChild(toastElement);
-            
-            document.body.appendChild(toastContainer);
-            
-            // Initialize and show the toast
-            const toast = new bootstrap.Toast(toastElement, {
-                autohide: true,
-                delay: 3000
-            });
-            toast.show();
-            
-            // Remove the toast element after it's hidden
-            toastElement.addEventListener('hidden.bs.toast', function() {
-                document.body.removeChild(toastContainer);
-            });
+            // Check for potential issues
+            if (resultItems.length > 0) {
+                console.log(`Found ${resultItems.length} result items`);
+                
+                // Check a sample of items for data attributes
+                const sampleItem = resultItems[0];
+                console.log('Sample item attributes:', {
+                    'data-detection-status': sampleItem.getAttribute('data-detection-status'),
+                    'data-filename': sampleItem.getAttribute('data-filename'),
+                    'data-subject': sampleItem.getAttribute('data-subject')
+                });
+            } else {
+                console.warn('No result items found in the DOM');
+            }
         }
+        
+        console.log('Initialization complete');
     });
+    
+    function updateCounts(data) {
+        console.log('Updating counts with data:', data);
+        document.getElementById('total-count').textContent = data.total_count;
+        document.getElementById('detected-count').textContent = data.detected_count;
+        document.getElementById('not-detected-count').textContent = data.not_detected_count;
+        
+        if (document.getElementById('unknown-count')) {
+            document.getElementById('unknown-count').textContent = data.unknown_count;
+        }
+        
+        // Update enhanced analysis button visibility
+        const enhancedAnalysisBtn = document.querySelector('a[href*="enhanced_analysis"]');
+        if (enhancedAnalysisBtn) {
+            enhancedAnalysisBtn.style.display = data.detected_count > 0 ? 'inline-block' : 'none';
+        }
+    }
+    
+    function showToast(message) {
+        const toastContainer = document.getElementById('toast-container');
+        if (!toastContainer) return;
+        
+        const toast = document.createElement('div');
+        toast.className = 'toast show';
+        toast.setAttribute('role', 'alert');
+        toast.setAttribute('aria-live', 'assertive');
+        toast.setAttribute('aria-atomic', 'true');
+        
+        toast.innerHTML = `
+            <div class="toast-header">
+                <strong class="me-auto">Notification</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+            <div class="toast-body">
+                ${message}
+            </div>
+        `;
+        
+        toastContainer.appendChild(toast);
+        
+        // Remove toast after 3 seconds
+        setTimeout(() => {
+            toast.remove();
+        }, 3000);
+    }
 </script>
 {% endblock %}

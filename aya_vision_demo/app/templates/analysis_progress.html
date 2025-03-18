@@ -1,0 +1,285 @@
+{% extends "base.html" %}
+
+{% block title %}Analysis Progress{% endblock %}
+
+{% block extra_css %}
+<style>
+    .progress-container {
+        margin-top: 20px;
+        margin-bottom: 20px;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 15px;
+        background-color: #f8f9fa;
+    }
+    .progress {
+        height: 25px !important;
+        background-color: #e9ecef !important;
+        border-radius: 0.25rem !important;
+        overflow: hidden !important;
+        margin-bottom: 10px !important;
+        box-shadow: inset 0 1px 2px rgba(0,0,0,0.1) !important;
+        position: relative !important;
+    }
+    .progress-bar {
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: center !important;
+        overflow: hidden !important;
+        color: #fff !important;
+        text-align: center !important;
+        white-space: nowrap !important;
+        background-color: #0d6efd !important;
+        transition: width 0.3s ease !important;
+        min-width: 2% !important;
+        font-weight: bold !important;
+        font-size: 14px !important;
+        position: absolute !important;
+        height: 100% !important;
+        left: 0 !important;
+        top: 0 !important;
+    }
+    .progress-info {
+        text-align: center;
+        margin-top: 10px;
+        font-size: 1rem;
+        color: #495057;
+        font-weight: bold;
+    }
+    .analysis-status {
+        margin-top: 15px;
+        display: block;
+        font-size: 1rem;
+        border-left: 4px solid #0d6efd;
+        padding-left: 10px;
+    }
+    .progress-container.active {
+        border-left: 4px solid #0d6efd;
+        animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+        0% { background-color: #f8f9fa; }
+        50% { background-color: #e9ecef; }
+        100% { background-color: #f8f9fa; }
+    }
+    .status-alert {
+        background-color: #f0f9ff;
+        border-left: 4px solid #0d6efd;
+        padding-left: 15px;
+    }
+    .status-message {
+        animation: fadeColorChange 2s infinite;
+    }
+    @keyframes fadeColorChange {
+        0% { color: #0d6efd; }
+        50% { color: #495057; }
+        100% { color: #0d6efd; }
+    }
+    .progress-info::before {
+        content: "● ";
+        display: inline-block;
+        margin-right: 5px;
+        animation: colorPulse 1s infinite;
+    }
+    @keyframes colorPulse {
+        0% { color: #0d6efd; }
+        50% { color: #28a745; }
+        100% { color: #0d6efd; }
+    }
+    .debug-panel {
+        margin-top: 20px;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+        padding: 10px;
+        background-color: #f8f9fa;
+        display: none;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-4">Analysis Progress</h1>
+    
+    <div class="card">
+        <div class="card-header">
+            <h5>Analyzing your images</h5>
+        </div>
+        <div class="card-body">
+            <!-- Progress Bar -->
+            <div class="progress mb-3" style="height: 30px;">
+                <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated" 
+                     role="progressbar" style="width: 0%;" 
+                     aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+            </div>
+            
+            <!-- Status message -->
+            <p id="statusMessage" class="text-center">Initializing analysis...</p>
+            
+            <!-- Hidden fields for progress ID -->
+            <input type="hidden" id="progressId" value="{{ progress_id }}">
+            <input type="hidden" id="resultId" value="{{ result_id }}">
+            
+            <!-- Debug information (hidden by default) -->
+            <div id="debugInfo" class="mt-4 p-3 border rounded bg-light" style="display: {{ 'block' if debug else 'none' }};">
+                <h5>Debug Information</h5>
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>Progress ID:</strong> <span id="debugProgressId">{{ progress_id }}</span></p>
+                        <p><strong>Result ID:</strong> <span id="debugResultId">{{ result_id }}</span></p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>Status:</strong> <span id="debugStatus">Initializing</span></p>
+                        <p><strong>Last poll time:</strong> <span id="debugLastPoll">-</span></p>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-12">
+                        <p><strong>Raw response:</strong></p>
+                        <pre id="debugRawResponse" class="border p-2" style="max-height: 200px; overflow-y: auto;">-</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="card-footer text-center">
+            <button id="retryButton" class="btn btn-primary" style="display: none;">Retry</button>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Configuration
+    const POLL_INTERVAL = 1000; // Poll every 1 second
+    const API_URL = "/api/analysis-progress";
+    const DEBUG = {{ 'true' if debug else 'false' }};
+    
+    // Get the progress ID from the hidden field
+    const progressId = document.getElementById('progressId').value;
+    const resultId = document.getElementById('resultId').value;
+    
+    // Elements
+    const progressBar = document.getElementById('progressBar');
+    const statusMessage = document.getElementById('statusMessage');
+    const retryButton = document.getElementById('retryButton');
+    const debugInfo = document.getElementById('debugInfo');
+    const debugStatus = document.getElementById('debugStatus');
+    const debugLastPoll = document.getElementById('debugLastPoll');
+    const debugRawResponse = document.getElementById('debugRawResponse');
+    
+    // Polling variables
+    let pollingTimer = null;
+    let pollCount = 0;
+    let lastPollTime = null;
+    
+    // Log debug information
+    function logDebug(message) {
+        if (DEBUG) {
+            console.log(`[DEBUG] ${message}`);
+        }
+    }
+    
+    // Update progress bar
+    function updateProgressBar(percent) {
+        progressBar.style.width = `${percent}%`;
+        progressBar.setAttribute('aria-valuenow', percent);
+        progressBar.textContent = `${percent}%`;
+    }
+    
+    // Update status message
+    function updateStatusMessage(status, completed, total, current_file) {
+        if (status === 'initialized') {
+            statusMessage.textContent = 'Analysis starting...';
+        } else if (status === 'processing') {
+            if (current_file) {
+                statusMessage.textContent = `Processing image ${completed}/${total}: ${current_file}`;
+            } else {
+                statusMessage.textContent = `Processing images (${completed}/${total})...`;
+            }
+        } else if (status === 'complete') {
+            statusMessage.textContent = 'Analysis complete! Redirecting to results...';
+        } else if (status === 'error') {
+            statusMessage.textContent = 'An error occurred during analysis.';
+            retryButton.style.display = 'inline-block';
+        }
+    }
+    
+    // Update debug information
+    function updateDebugInfo(response) {
+        if (!DEBUG) return;
+        
+        debugStatus.textContent = response.status;
+        debugLastPoll.textContent = new Date().toLocaleTimeString();
+        debugRawResponse.textContent = JSON.stringify(response, null, 2);
+    }
+    
+    // Poll for progress updates
+    function pollProgress() {
+        pollCount++;
+        lastPollTime = new Date();
+        
+        logDebug(`Polling for progress (${pollCount}): ${progressId}`);
+        
+        fetch(`${API_URL}/${progressId}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                logDebug(`Received response: ${JSON.stringify(data)}`);
+                
+                // Update UI with progress
+                updateProgressBar(data.percent || 0);
+                updateStatusMessage(data.status, data.completed, data.total, data.current_file);
+                updateDebugInfo(data);
+                
+                // Check if processing is complete
+                if (data.status === 'complete') {
+                    clearInterval(pollingTimer);
+                    logDebug('Analysis complete, redirecting to results');
+                    
+                    // Redirect to results page after a short delay
+                    setTimeout(() => {
+                        window.location.href = `/analysis-results/${resultId}`;
+                    }, 1500);
+                }
+                
+                // Check if there was an error
+                if (data.status === 'error') {
+                    clearInterval(pollingTimer);
+                    logDebug(`Analysis error: ${data.error || 'Unknown error'}`);
+                    statusMessage.textContent = `Error: ${data.error || 'Unknown error'}`;
+                    retryButton.style.display = 'inline-block';
+                }
+            })
+            .catch(error => {
+                logDebug(`Error polling for progress: ${error.message}`);
+                
+                // Don't stop polling on errors, just log them
+                // We'll try again on the next interval
+                console.error('Error polling for progress:', error);
+            });
+    }
+    
+    // Retry button event handler
+    retryButton.addEventListener('click', function() {
+        window.location.reload();
+    });
+    
+    // Start polling when the page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        logDebug(`Starting polling for progress ID: ${progressId}`);
+        logDebug(`Result ID: ${resultId}`);
+        
+        // Do an initial poll
+        pollProgress();
+        
+        // Set up regular polling
+        pollingTimer = setInterval(pollProgress, POLL_INTERVAL);
+    });
+</script>
+{% endblock %} 

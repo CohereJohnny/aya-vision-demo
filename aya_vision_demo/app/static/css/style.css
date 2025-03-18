@@ -200,7 +200,7 @@ body {
 
 /* Hide items based on filter */
 .hidden-item {
-    display: none;
+    display: none !important;
 }
 
 /* Toast notifications */

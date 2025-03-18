@@ -83,6 +83,7 @@
         overflow: hidden !important;
         margin-bottom: 10px !important;
         box-shadow: inset 0 1px 2px rgba(0,0,0,0.1) !important;
+        position: relative !important;
     }
     .progress-bar {
         display: flex !important;
@@ -93,10 +94,14 @@
         text-align: center !important;
         white-space: nowrap !important;
         background-color: #0d6efd !important;
-        transition: width 0.6s ease !important;
-        min-width: 2% !important; /* Ensure it's always visible */
+        transition: width 0.3s ease !important;
+        min-width: 2% !important;
         font-weight: bold !important;
         font-size: 14px !important;
+        position: absolute !important;
+        height: 100% !important;
+        left: 0 !important;
+        top: 0 !important;
     }
     .progress-info {
         text-align: center;
@@ -110,6 +115,39 @@
         display: none;
         font-size: 1rem;
         border-left: 4px solid #0d6efd;
+    }
+    .progress-container.active {
+        border-left: 4px solid #0d6efd;
+        animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+        0% { background-color: #f8f9fa; }
+        50% { background-color: #e9ecef; }
+        100% { background-color: #f8f9fa; }
+    }
+    #analysis-status-alert {
+        background-color: #f0f9ff;
+        border-left: 4px solid #0d6efd;
+        padding-left: 15px;
+    }
+    #status-message {
+        animation: fadeColorChange 2s infinite;
+    }
+    @keyframes fadeColorChange {
+        0% { color: #0d6efd; }
+        50% { color: #495057; }
+        100% { color: #0d6efd; }
+    }
+    .progress-info::before {
+        content: "● ";
+        display: inline-block;
+        margin-right: 5px;
+        animation: colorPulse 1s infinite;
+    }
+    @keyframes colorPulse {
+        0% { color: #0d6efd; }
+        50% { color: #28a745; }
+        100% { color: #0d6efd; }
     }
 </style>
 {% endblock %}
@@ -172,15 +210,55 @@
                         <input type="hidden" name="selected_images" id="selected_images_input" value="">
                         
                         <div class="progress-container" id="progress-container">
-                            <div class="progress">
-                                <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" style="width: 2% !important;" id="analysis-progress-bar"></div>
+                            <!-- Debug controls section in the progress container -->
+                            <div id="manual-testing" class="manual-testing" style="display:none; margin-top: 20px; padding: 15px; border: 1px solid #ddd; background-color: #f8f9fa;">
+                                <h4>Debug Controls</h4>
+                                <div class="form-group">
+                                    <label for="manualProgressId">Progress ID:</label>
+                                    <input type="text" id="manualProgressId" class="form-control" placeholder="Enter progress ID">
+                                </div>
+                                <div class="btn-group mb-2">
+                                    <button type="button" onclick="startManualPolling()" class="btn btn-sm btn-danger">Start Manual Polling</button>
+                                    <button type="button" onclick="forceSinglePoll()" class="btn btn-sm btn-warning">Force Single Poll</button>
+                                    <button type="button" onclick="stopAllPolling()" class="btn btn-sm btn-secondary">Stop All Polling</button>
+                                </div>
+                                <div style="margin-top: 5px;">
+                                    <a href="/api/test-polling/test?test_mode=true" target="_blank" class="btn btn-sm btn-info">Run Test Endpoint</a>
+                                    <a href="javascript:void(0)" onclick="openPollingTestPage()" class="btn btn-sm btn-outline-primary">Open Test Page</a>
+                                </div>
+                                <div id="manualPollResults" style="font-family: monospace; font-size: 12px; max-height: 100px; overflow-y: auto; margin-top: 10px; padding: 5px; background-color: #f5f5f5; border: 1px solid #ddd;">
+                                    Manual polling results will appear here
+                                </div>
                             </div>
-                            <div class="progress-info">
-                                <span id="analysis-percentage">0%</span> - <span id="analysis-status">Preparing analysis...</span>
+                            
+                            <!-- Bare minimum progress bar implementation -->
+                            <div style="width: 100%; background-color: #f0f0f0; border: 1px solid #ddd; height: 40px; position: relative; border-radius: 4px; overflow: hidden;">
+                                <!-- Main progress fill - using a separate non-transitioning element -->
+                                <div id="progress-fill" style="position: absolute; top: 0; left: 0; height: 100%; width: 2%; background-color: #0d6efd;"></div>
+                                <!-- Text overlay -->
+                                <div style="position: absolute; width: 100%; text-align: center; line-height: 40px; color: #000; font-weight: bold;">
+                                    <span id="progress-text">2%</span>
+                                </div>
+                                <!-- Debug element to display raw values -->
+                                <div id="debug-progress" style="position: absolute; right: 5px; top: 2px; font-size: 10px; color: #666;"></div>
                             </div>
-                            <div class="analysis-status alert alert-info" id="analysis-status-alert">
+                            
+                            <div style="margin-top: 15px; text-align: center;">
+                                <span id="analysis-status">Preparing analysis...</span>
+                            </div>
+                            
+                            <div class="alert alert-info mt-3" id="analysis-status-alert" style="margin-top: 15px;">
                                 <i class="fas fa-spinner fa-spin me-2"></i>
-                                <span id="status-message" style="font-size: 1.1rem; font-weight: 500;">Preparing for enhanced analysis...</span>
+                                <span id="status-message" style="font-size: 1.1rem;">Preparing for enhanced analysis...</span>
+                            </div>
+                            
+                            <!-- Simple test buttons for direct debugging -->
+                            <div style="margin-top: 10px; display: none;" id="debug-controls">
+                                <button type="button" onclick="testProgress(25)" class="btn btn-sm btn-outline-secondary">Test 25%</button>
+                                <button type="button" onclick="testProgress(50)" class="btn btn-sm btn-outline-secondary">Test 50%</button>
+                                <button type="button" onclick="testProgress(75)" class="btn btn-sm btn-outline-secondary">Test 75%</button>
+                                <button type="button" onclick="testProgress(100)" class="btn btn-sm btn-outline-secondary">Test 100%</button>
+                                <button type="button" onclick="toggleDebug()" class="btn btn-sm btn-outline-danger">Toggle Debug</button>
                             </div>
                         </div>
                         
@@ -228,6 +306,66 @@
     document.addEventListener('DOMContentLoaded', function() {
         // Store the subject for use in JavaScript
         const subject = "{{ subject }}";
+        
+        // Initialize flags and vars
+        const isNewAnalysis = window.location.search.includes('new=true');
+        const debugMode = isDebugModeActive();
+        console.log('Page Load: Debug Mode =', debugMode, 'New Analysis =', isNewAnalysis);
+        console.log('Current URL:', window.location.href);
+        
+        // IMPORTANT: Initialize with null - do not use any stored/session values at page load
+        window.currentProgressId = null;
+        console.log('INIT: currentProgressId set to null at startup');
+        
+        // Clear form progress ID field on every page load
+        const progressIdInput = document.getElementById('manualProgressId');
+        if (progressIdInput) {
+            const oldValue = progressIdInput.value;
+            progressIdInput.value = '';
+            console.log('INIT: Cleared progress ID input (was:', oldValue, ')');
+            
+            // If debug mode is active, add a placeholder to show it's not set yet
+            if (debugMode) {
+                progressIdInput.placeholder = "Submit the form to generate a Progress ID";
+            }
+        }
+        
+        // Function to check if debug mode is active (checks both URL and localStorage)
+        function isDebugModeActive() {
+            // Check URL parameter first
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('debug')) {
+                return urlParams.get('debug') === 'true';
+            }
+            // Fall back to localStorage
+            return localStorage.getItem('ayaVisionDebugMode') === 'true';
+        }
+        
+        // Make debug tools visible if debug mode is active
+        if (debugMode) {
+            console.log('Debug mode detected, making debug panels visible');
+            
+            // Make debug controls visible
+            const debugControls = document.getElementById('debug-controls');
+            if (debugControls) {
+                debugControls.style.display = 'block';
+                console.log('Made debug controls visible');
+            }
+            
+            // Make manual testing panel visible
+            const manualTesting = document.getElementById('manual-testing');
+            if (manualTesting) {
+                manualTesting.style.display = 'block';
+                console.log('Made manual testing panel visible');
+            }
+            
+            // Set initial status in debug log
+            const debugInfo = document.getElementById('debug-progress');
+            if (debugInfo) {
+                debugInfo.textContent = 'Ready to start new enhanced analysis';
+                console.log('Set initial debug status message');
+            }
+        }
         
         // Function to check if a word is already plural
         function isPlural(word) {
@@ -326,7 +464,36 @@
             });
         });
         
-        // Handle form submission with progress tracking
+        // Global variable to track if we're currently polling
+        let isPolling = false;
+        let pollingTimeoutId = null;
+        
+        // Simple function to update progress display
+        function updateProgressUI(percent, statusText) {
+            // Get DOM elements once
+            const progressFill = document.getElementById('progress-fill');
+            const progressText = document.getElementById('progress-text');
+            const statusMessage = document.getElementById('status-message');
+            
+            // Ensure percent is valid and between 2-100
+            percent = Math.max(2, Math.min(100, Math.round(percent)));
+            
+            // Update progress bar width directly - no transitions
+            progressFill.style.width = percent + '%';
+            
+            // Update text content
+            progressText.textContent = percent + '%';
+            
+            // Update status message if provided
+            if (statusText) {
+                statusMessage.innerHTML = statusText;
+            }
+            
+            // Log updates for debugging
+            console.log(`Progress updated to ${percent}%`, statusText || '');
+        }
+        
+        // Handle form submission
         form.addEventListener('submit', function(e) {
             e.preventDefault();
             
@@ -335,166 +502,613 @@
                 return;
             }
             
-            // Disable the submit button
+            // Clear any existing polling
+            if (pollingTimeoutId) {
+                clearTimeout(pollingTimeoutId);
+                pollingTimeoutId = null;
+            }
+            isPolling = false;
+            
+            // Disable submit button and show spinner
             submitBtn.disabled = true;
             submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Processing...';
             
-            // Show progress elements
+            // Show progress container
             const progressContainer = document.getElementById('progress-container');
             progressContainer.style.display = 'block';
             
+            // Show status alert
             const analysisStatusAlert = document.getElementById('analysis-status-alert');
             analysisStatusAlert.style.display = 'block';
             
-            // Initialize progress bar with a small width
-            const progressBar = document.getElementById('analysis-progress-bar');
-            progressBar.setAttribute('style', 'width: 2% !important');
+            // Show manual testing section if in debug mode
+            if (isDebugModeActive()) {
+                const manualTesting = document.getElementById('manual-testing');
+                if (manualTesting) {
+                    manualTesting.style.display = 'block';
+                }
+                console.log('Debug mode enabled, manual testing panel visible');
+            }
             
-            const statusMessage = document.getElementById('status-message');
-            statusMessage.textContent = 'Starting enhanced analysis...';
+            // Reset progress display
+            updateProgressUI(2, '<strong>Submitting request...</strong>');
             
-            // Submit the form using AJAX
+            // Log submission
+            console.log('Form submission started at:', new Date().toISOString());
+            console.log('Selected images:', Array.from(selectedImages));
+            
+            // Use simple fetch API for form submission
             const formData = new FormData(form);
             
-            // Create and configure XMLHttpRequest
-            const xhr = new XMLHttpRequest();
+            // Add a timestamp parameter to prevent caching
+            const timestamp = new Date().getTime();
             
-            // Handle the response
-            xhr.onreadystatechange = function() {
-                if (xhr.readyState === 4) {
-                    if (xhr.status === 200) {
-                        try {
-                            // Parse the JSON response
-                            const response = JSON.parse(xhr.responseText);
-                            console.log('Response received:', response);
-                            
-                            // Extract the progress ID from the response
-                            const progressId = response.progress_id;
-                            console.log('Progress ID:', progressId);
-                            
-                            if (progressId) {
-                                // Start polling for progress with the progress ID
-                                pollEnhancedAnalysisProgress(progressId);
-                            } else {
-                                throw new Error('No progress ID received from server');
-                            }
-                        } catch (e) {
-                            console.error('Error parsing response:', e);
-                            analysisStatusAlert.classList.remove('alert-info');
-                            analysisStatusAlert.classList.add('alert-danger');
-                            statusMessage.textContent = 'Error processing response. Please try again.';
-                            
-                            // Re-enable the submit button
-                            submitBtn.disabled = false;
-                            submitBtn.innerHTML = 'Start Enhanced Analysis';
-                        }
-                    } else {
-                        try {
-                            const response = JSON.parse(xhr.responseText);
-                            analysisStatusAlert.classList.remove('alert-info');
-                            analysisStatusAlert.classList.add('alert-danger');
-                            statusMessage.textContent = response.error || 'Error processing images. Please try again.';
-                        } catch (e) {
-                            analysisStatusAlert.classList.remove('alert-info');
-                            analysisStatusAlert.classList.add('alert-danger');
-                            statusMessage.textContent = 'Error processing images. Please try again.';
-                        }
-                        
-                        // Re-enable the submit button
-                        submitBtn.disabled = false;
-                        submitBtn.innerHTML = 'Start Enhanced Analysis';
+            console.log('Sending form data to:', form.action);
+            
+            fetch(form.action + '?_=' + timestamp, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache'
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                console.log('Response received with status:', response.status);
+                return response.json();
+            })
+            .then(data => {
+                console.log('Form submission response received:', data);
+                console.log('Full response data object:', JSON.stringify(data));
+                
+                // CRITICAL CHECK: Validate the response data
+                if (!data) {
+                    throw new Error('Empty response received from server');
+                }
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'Server indicated an error but no message was provided');
+                }
+                
+                // Extract the progress ID with explicit error checking
+                const progressId = data.progress_id;
+                if (!progressId) {
+                    console.error('Response is missing progress_id field:', data);
+                    throw new Error('Missing progress_id in server response');
+                }
+                
+                console.log('VALIDATION SUCCESS: Found valid progress_id in response:', progressId);
+                
+                // IMPORTANT: Store the progress ID globally IMMEDIATELY
+                window.currentProgressId = progressId;
+                console.log('Set global window.currentProgressId =', progressId);
+                
+                // Update all UI elements that need the progress ID
+                const progressIdInput = document.getElementById('manualProgressId');
+                if (progressIdInput) {
+                    const previousValue = progressIdInput.value;
+                    progressIdInput.value = progressId;
+                    console.log('Updated progress ID input from', previousValue, 'to', progressId);
+                    
+                    // Also update any other progress ID inputs
+                    const otherInputs = document.querySelectorAll('.progress-id-input');
+                    if (otherInputs && otherInputs.length > 0) {
+                        console.log(`Updating ${otherInputs.length} additional progress inputs`);
+                        otherInputs.forEach(input => {
+                            input.value = progressId;
+                        });
                     }
                 }
-            };
-            
-            // Open and send the request
-            xhr.open('POST', form.action, true);
-            xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-            xhr.send(formData);
+                
+                // Ensure debug panel is visible if debug mode is active
+                if (isDebugModeActive()) {
+                    const manualTesting = document.getElementById('manual-testing');
+                    if (manualTesting) {
+                        manualTesting.style.display = 'block';
+                    }
+                    
+                    const debugControls = document.getElementById('debug-controls');
+                    if (debugControls) {
+                        debugControls.style.display = 'block';
+                    }
+                    
+                    // Update debug status with more informative message
+                    const debugInfo = document.getElementById('debug-progress');
+                    if (debugInfo) {
+                        debugInfo.textContent = `Analysis starting with progress ID: ${progressId}`;
+                    }
+                }
+                
+                // Update progress UI
+                updateProgressUI(5, '<strong>Request accepted!</strong> Starting analysis in the background...');
+                
+                // Start polling with the new progress ID
+                console.log('STARTING POLLING with validated progress ID:', progressId);
+                startPolling(progressId);
+            })
+            .catch(error => {
+                console.error('Error during form submission:', error);
+                
+                // Update UI to show error
+                const statusAlert = document.getElementById('analysis-status-alert');
+                statusAlert.classList.remove('alert-info');
+                statusAlert.classList.add('alert-danger');
+                
+                document.getElementById('status-message').innerHTML = 
+                    `<strong>Error:</strong> ${error.message || 'An unexpected error occurred'}`;
+                
+                // Re-enable submit button
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = 'Start Enhanced Analysis';
+            });
         });
         
-        // Function to poll for enhanced analysis progress
-        function pollEnhancedAnalysisProgress(progressId) {
-            console.log('Starting to poll for enhanced analysis progress with ID:', progressId);
+        // Start polling for progress updates
+        function startPolling(progressId) {
+            // FORCE stop any existing polling
+            if (pollingTimeoutId) {
+                clearTimeout(pollingTimeoutId);
+                pollingTimeoutId = null;
+            }
             
-            // Make sure progress elements are visible
-            const progressContainer = document.getElementById('progress-container');
-            progressContainer.style.display = 'block';
+            console.log('===== STARTING NEW POLLING PROCESS =====');
+            console.log('Start time:', new Date().toISOString());
+            isPolling = true;
+            console.log('Starting progress polling for ID:', progressId);
             
-            const analysisStatusAlert = document.getElementById('analysis-status-alert');
-            analysisStatusAlert.style.display = 'block';
+            // Initial progress value
+            let lastProgress = 5;
+            let failedAttempts = 0;
+            let pollCount = 0;
             
-            // Get progress bar element
-            const progressBar = document.getElementById('analysis-progress-bar');
-            
-            // Initialize with a small width to make it visible
-            progressBar.style.width = '2%';
-            
-            // Update initial status message
-            const statusMessage = document.getElementById('status-message');
-            statusMessage.innerHTML = '<strong>Starting enhanced analysis...</strong>';
-            
-            // Set up polling interval
-            const progressInterval = setInterval(function() {
-                console.log('Polling for progress with URL:', '/api/enhanced-analysis-progress/' + progressId);
+            // Function to fetch progress once
+            function pollOnce() {
+                pollCount++;
+                console.log(`----- POLL REQUEST #${pollCount} -----`);
+                console.log(`Poll #${pollCount} time:`, new Date().toISOString());
                 
-                fetch('/api/enhanced-analysis-progress/' + progressId)
-                    .then(response => {
-                        console.log('Progress response status:', response.status);
-                        if (!response.ok) {
-                            throw new Error(`Failed to fetch progress: ${response.status} ${response.statusText}`);
+                // Clear any existing timeout
+                if (pollingTimeoutId) {
+                    clearTimeout(pollingTimeoutId);
+                    pollingTimeoutId = null;
+                }
+                
+                // Create unique URL with timestamp and random value to prevent caching
+                const timestamp = new Date().getTime();
+                const random = Math.floor(Math.random() * 1000000); // Random number
+                const url = `/api/enhanced-analysis-progress/${progressId}?_=${timestamp}&r=${random}&pc=${pollCount}`;
+                
+                console.log(`[${new Date().toLocaleTimeString()}] Poll #${pollCount} - URL: ${url}`);
+                
+                // Debug element update
+                const debugEl = document.getElementById('debug-progress');
+                if (debugEl) {
+                    debugEl.textContent = `Sending poll #${pollCount}...`;
+                }
+                
+                // Use fetch with a timeout
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => {
+                    console.error(`Poll #${pollCount} - Request timeout!`);
+                    controller.abort();
+                }, 5000); // 5 second timeout
+                
+                // Debug request data
+                const requestStartTime = performance.now();
+                
+                fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'Cache-Control': 'no-cache, no-store, must-revalidate',
+                        'Pragma': 'no-cache',
+                        'Expires': '0',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-Client-Time': timestamp.toString(),
+                        'X-Random': random.toString(),
+                        'X-Poll-Count': pollCount.toString()
+                    },
+                    signal: controller.signal
+                })
+                .then(response => {
+                    clearTimeout(timeoutId);
+                    
+                    // Log response headers for debugging
+                    const headers = {};
+                    response.headers.forEach((value, name) => {
+                        headers[name] = value;
+                    });
+                    console.log(`Poll #${pollCount} - Response headers:`, headers);
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+                    
+                    return response.text().then(text => {
+                        // Log raw response text for debugging
+                        console.log(`Poll #${pollCount} - Raw response:`, text);
+                        
+                        try {
+                            return JSON.parse(text);
+                        } catch (e) {
+                            console.error(`Poll #${pollCount} - JSON parse error:`, e);
+                            throw new Error('Invalid JSON response: ' + text);
                         }
-                        return response.json();
-                    })
-                    .then(data => {
-                        console.log('Enhanced analysis progress data received:', data);
+                    });
+                })
+                .then(data => {
+                    console.log(`Poll #${pollCount} - Progress data received:`, data);
+                    
+                    // Calculate request time
+                    const requestEndTime = performance.now();
+                    const requestTime = Math.round(requestEndTime - requestStartTime);
+                    console.log(`Poll #${pollCount} - Request completed in ${requestTime}ms`);
+                    
+                    // Show request time in debug info
+                    const debugEl = document.getElementById('debug-progress');
+                    if (debugEl) {
+                        debugEl.textContent = `Poll #${pollCount}: ${data.percent}% [${requestTime}ms]`;
+                    }
+                    
+                    // Reset failed attempts counter on success
+                    failedAttempts = 0;
+                    
+                    if (data && 'percent' in data) {
+                        // Log detailed info about the data received
+                        console.log(`Poll #${pollCount} - Details: percent=${data.percent}, completed=${data.completed}, total=${data.total}, status=${data.status}`);
                         
-                        // Update progress bar - use direct DOM manipulation
-                        const percentComplete = data.percent || 0;
-                        console.log('Setting progress bar width to:', percentComplete + '%');
+                        const percent = Math.max(5, Math.min(100, parseInt(data.percent || 0)));
                         
-                        // Force the progress bar to update by directly setting the style
-                        document.getElementById('analysis-progress-bar').setAttribute('style', 'width: ' + percentComplete + '% !important');
+                        // Check if progress has changed
+                        if (percent !== lastProgress) {
+                            console.log(`Poll #${pollCount} - Progress changed from ${lastProgress}% to ${percent}%`);
+                        } else {
+                            console.log(`Poll #${pollCount} - Progress unchanged at ${percent}%`);
+                        }
                         
-                        // Update percentage text
-                        const analysisPercentage = document.getElementById('analysis-percentage');
-                        analysisPercentage.textContent = percentComplete + '%';
-                        console.log('Updated percentage text to:', percentComplete + '%');
+                        lastProgress = percent;
                         
-                        // Update status message
-                        const statusMessage = document.getElementById('status-message');
-                        const analysisStatus = document.getElementById('analysis-status');
+                        // Calculate images processed
+                        const completed = data.completed || 0;
+                        const total = data.total || 1;
                         
+                        // Update progress UI
                         if (data.status === 'processing') {
-                            // Create a more prominent status message that matches the server logs
-                            const logStyleMessage = `<strong>Enhanced Analysis Progress: ${data.completed}/${data.total} images processed (${percentComplete}%)</strong>`;
-                            const currentFileMessage = `<div>Current file: ${data.current_file}</div>`;
+                            const statusHTML = `<strong>Enhanced Analysis Progress: ${completed}/${total} images processed (${percent}%)</strong>`;
+                            const fileInfo = data.current_file ? `<div>Processing: ${data.current_file}</div>` : '';
                             
-                            statusMessage.innerHTML = logStyleMessage + currentFileMessage;
-                            analysisStatus.textContent = `Processing image ${data.completed} of ${data.total}`;
-                            console.log('Updated status message to match server logs');
-                        } else if (data.status === 'complete') {
-                            statusMessage.innerHTML = '<strong>Analysis complete. Redirecting...</strong>';
-                            analysisStatus.textContent = 'Complete';
-                            console.log('Analysis complete, will redirect soon');
-                            clearInterval(progressInterval);
+                            updateProgressUI(percent, statusHTML + fileInfo);
+                            document.getElementById('analysis-status').textContent = `Processing image ${completed} of ${total}`;
                             
-                            // Redirect to enhanced results page
-                            setTimeout(function() {
+                            // Log received values for debugging
+                            document.getElementById('debug-progress').textContent = 
+                                `Poll #${pollCount}: ${percent}% (${completed}/${total})`;
+                        } else if (data.status === 'complete' || percent >= 100) {
+                            // Final update for completed state
+                            updateProgressUI(100, '<strong>Analysis complete! Redirecting...</strong>');
+                            document.getElementById('analysis-status').textContent = 'Complete';
+                            
+                            console.log(`Poll #${pollCount} - Analysis complete, will redirect soon`);
+                            
+                            // Stop polling
+                            console.log('===== ENDING POLLING PROCESS - COMPLETE =====');
+                            isPolling = false;
+                            
+                            // Redirect to results page after a short delay
+                            setTimeout(() => {
                                 window.location.href = '{{ url_for("main.enhanced_results") }}';
                             }, 1000);
+                            
+                            return; // Exit without scheduling another poll
                         }
                         
-                        // If complete, clear the interval
-                        if (percentComplete >= 100 || data.status === 'complete') {
-                            console.log('Enhanced analysis progress complete, clearing interval');
-                            clearInterval(progressInterval);
+                        // ALWAYS schedule the next poll with the fixed interval
+                        // Even if we see a high percent, we keep polling until we get a complete status
+                        const pollInterval = 3000; // 3 seconds - slightly faster than before
+                        console.log(`Poll #${pollCount} - Scheduling next poll (#${pollCount+1}) in ${pollInterval/1000} seconds...`);
+                        
+                        // Store the timeout ID so we can cancel it if needed
+                        pollingTimeoutId = setTimeout(() => {
+                            if (isPolling) {
+                                console.log(`Poll #${pollCount} - Executing scheduled poll #${pollCount+1}`);
+                                pollOnce();
+                            } else {
+                                console.log(`Poll #${pollCount} - Skipping scheduled poll #${pollCount+1} - polling stopped`);
+                            }
+                        }, pollInterval);
+                    } else {
+                        console.warn(`Poll #${pollCount} - Invalid progress data format:`, data);
+                        throw new Error('Invalid progress data format');
+                    }
+                })
+                .catch(error => {
+                    failedAttempts++;
+                    console.error(`Poll #${pollCount} - Error (attempt ${failedAttempts}):`, error);
+                    
+                    // Show error in UI if not an abort error
+                    if (error.name !== 'AbortError') {
+                        document.getElementById('debug-progress').textContent = `Error: ${error.message}`;
+                    }
+                    
+                    // If we've failed too many times, show an error but KEEP TRYING
+                    if (failedAttempts >= 3) {
+                        const statusAlert = document.getElementById('analysis-status-alert');
+                        statusAlert.classList.remove('alert-info');
+                        statusAlert.classList.add('alert-warning');
+                        
+                        document.getElementById('status-message').innerHTML = 
+                            `<strong>Warning:</strong> Having trouble getting progress updates (attempt ${failedAttempts}), but analysis is continuing in the background...`;
+                    }
+                    
+                    // Always retry - with backoff for failures
+                    // We never completely give up until we get a complete status or user leaves the page
+                    const backoff = Math.min(10000, 1000 * Math.pow(1.5, failedAttempts));
+                    console.log(`Poll #${pollCount} - Retrying poll #${pollCount+1} in ${backoff/1000} seconds...`);
+                    
+                    // Schedule next poll with backoff
+                    pollingTimeoutId = setTimeout(() => {
+                        if (isPolling) {
+                            console.log(`Poll #${pollCount} - Executing retry poll #${pollCount+1} after error`);
+                            pollOnce();
+                        } else {
+                            console.log(`Poll #${pollCount} - Skipping retry poll #${pollCount+1} - polling stopped`);
                         }
-                    })
-                    .catch(error => {
-                        console.error('Error polling enhanced analysis progress:', error);
-                    });
-            }, 1000); // Poll every second
+                    }, backoff);
+                });
+            }
+            
+            // Start the first poll IMMEDIATELY - no delay or setTimeout
+            pollOnce();
+        }
+        
+        // Debug tools - use ?debug=true in URL to enable
+        if (isDebugModeActive()) {
+            document.getElementById('debug-controls').style.display = 'block';
+        }
+        
+        // Test function for debugging
+        window.testProgress = function(percent) {
+            updateProgressUI(percent, `Test ${percent}% progress update`);
+        };
+        
+        // Toggle debug mode
+        window.toggleDebug = function() {
+            const debugControls = document.getElementById('debug-controls');
+            debugControls.style.display = debugControls.style.display === 'none' ? 'block' : 'none';
+        };
+
+        // Manual polling and debugging functions
+        let manualPollingIntervalId = null;
+        
+        // Force a single poll request for debugging
+        window.forceSinglePoll = function() {
+            console.log('forceSinglePoll called');
+            
+            // FIRST CHECK: Always check the global progress ID first
+            if (window.currentProgressId) {
+                console.log('Using global progress ID:', window.currentProgressId);
+                executeManualPoll(window.currentProgressId);
+                return;
+            }
+            
+            // FALLBACK: If no global ID, try to get from input
+            const progressIdInput = document.getElementById('manualProgressId');
+            let inputValue = progressIdInput ? progressIdInput.value.trim() : '';
+            
+            if (inputValue) {
+                console.log('Using input field progress ID:', inputValue);
+                executeManualPoll(inputValue);
+                return;
+            }
+            
+            // If we get here, we don't have a progress ID
+            alert('No progress ID available. Please submit the form first to generate a progress ID.');
+        };
+        
+        // Helper function to execute a single poll
+        function executeManualPoll(progressId) {
+            console.log('Executing manual poll with progress ID:', progressId);
+            
+            // Update the input field if needed
+            const progressIdInput = document.getElementById('manualProgressId');
+            if (progressIdInput && progressIdInput.value !== progressId) {
+                progressIdInput.value = progressId;
+                console.log('Updated input field to match used progress ID');
+            }
+            
+            const resultArea = document.getElementById('manualPollResults');
+            resultArea.innerHTML = `<div>Making single request to ${progressId}...</div>`;
+            
+            // Make a direct fetch request to the enhanced-analysis-progress endpoint
+            const timestamp = new Date().getTime();
+            const url = `/api/enhanced-analysis-progress/${progressId}?_=${timestamp}&manual=true`;
+            
+            console.log('Sending request to:', url);
+            
+            fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache',
+                    'Expires': '0'
+                }
+            })
+            .then(response => {
+                console.log('Response status:', response.status);
+                return response.text();
+            })
+            .then(text => {
+                console.log('Raw response text:', text);
+                resultArea.innerHTML += `<div style="color: green">Response: ${text}</div>`;
+                
+                // Try to parse and update UI
+                try {
+                    const data = JSON.parse(text);
+                    console.log('Parsed response data:', data);
+                    
+                    if (data && 'percent' in data) {
+                        updateProgressUI(data.percent, 
+                            `<strong>Manual Poll: ${data.completed}/${data.total} (${data.percent}%)</strong>`);
+                    }
+                } catch (e) {
+                    console.error('Error parsing response:', e);
+                    resultArea.innerHTML += `<div style="color: red">Parse error: ${e.message}</div>`;
+                }
+            })
+            .catch(error => {
+                console.error('Fetch error:', error);
+                resultArea.innerHTML += `<div style="color: red">Error: ${error.message}</div>`;
+            });
+        }
+        
+        // Start manual polling at a fixed interval
+        window.startManualPolling = function() {
+            // Stop any existing polling
+            window.stopAllPolling();
+            
+            console.log('startManualPolling called');
+            
+            // FIRST CHECK: Always check the global progress ID first
+            if (window.currentProgressId) {
+                console.log('Using global progress ID for polling:', window.currentProgressId);
+                startPollingWithId(window.currentProgressId);
+                return;
+            }
+            
+            // FALLBACK: If no global ID, try to get from input
+            const progressIdInput = document.getElementById('manualProgressId');
+            let inputValue = progressIdInput ? progressIdInput.value.trim() : '';
+            
+            if (inputValue) {
+                console.log('Using input field progress ID for polling:', inputValue);
+                startPollingWithId(inputValue);
+                return;
+            }
+            
+            // If we get here, we don't have a progress ID
+            alert('No progress ID available. Please submit the form first to generate a progress ID.');
+        };
+        
+        // Helper function to start polling with a specific ID
+        function startPollingWithId(progressId) {
+            console.log('Starting manual polling with progress ID:', progressId);
+            
+            // Update the input field if needed
+            const progressIdInput = document.getElementById('manualProgressId');
+            if (progressIdInput && progressIdInput.value !== progressId) {
+                progressIdInput.value = progressId;
+                console.log('Updated input field to match used progress ID');
+            }
+            
+            const resultArea = document.getElementById('manualPollResults');
+            resultArea.innerHTML = `<div>Starting manual polling for ${progressId}...</div>`;
+            
+            let pollCount = 0;
+            
+            // Define polling function
+            function manualPoll() {
+                pollCount++;
+                const timestamp = new Date().getTime();
+                const url = `/api/enhanced-analysis-progress/${progressId}?_=${timestamp}&manual=true&count=${pollCount}`;
+                
+                console.log(`Manual poll #${pollCount} to URL:`, url);
+                resultArea.innerHTML += `<div>Poll #${pollCount}: requesting...</div>`;
+                
+                fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'Cache-Control': 'no-cache, no-store, must-revalidate',
+                        'Pragma': 'no-cache',
+                        'Expires': '0'
+                    }
+                })
+                .then(response => response.text())
+                .then(text => {
+                    resultArea.innerHTML += `<div style="color: green">Poll #${pollCount} response received (${new Date().toLocaleTimeString()})</div>`;
+                    
+                    // Try to parse and update UI
+                    try {
+                        const data = JSON.parse(text);
+                        if (data && 'percent' in data) {
+                            resultArea.innerHTML += `<div>Progress: ${data.percent}% (${data.completed}/${data.total})</div>`;
+                            
+                            updateProgressUI(data.percent, 
+                                `<strong>Manual Poll #${pollCount}: ${data.completed}/${data.total} (${data.percent}%)</strong>`);
+                                
+                            // Stop polling when complete
+                            if (data.status === 'complete' || data.percent >= 100) {
+                                resultArea.innerHTML += `<div style="color: blue">Analysis complete! Stopping polls.</div>`;
+                                window.stopAllPolling();
+                            }
+                        }
+                    } catch (e) {
+                        resultArea.innerHTML += `<div style="color: red">Parse error: ${e.message}</div>`;
+                    }
+                    
+                    // Scroll to bottom of results
+                    resultArea.scrollTop = resultArea.scrollHeight;
+                })
+                .catch(error => {
+                    resultArea.innerHTML += `<div style="color: red">Poll #${pollCount} error: ${error.message}</div>`;
+                    resultArea.scrollTop = resultArea.scrollHeight;
+                });
+            }
+            
+            // Run immediately
+            manualPoll();
+            
+            // Then set interval
+            manualPollingIntervalId = setInterval(manualPoll, 4000);  // Poll every 4 seconds
+            
+            resultArea.innerHTML += `<div style="color: blue">Polling started with 4 second interval</div>`;
+        }
+        
+        // Stop all polling
+        window.stopAllPolling = function() {
+            // Stop the automatic polling
+            if (pollingTimeoutId) {
+                clearTimeout(pollingTimeoutId);
+                pollingTimeoutId = null;
+            }
+            isPolling = false;
+            
+            // Stop manual polling
+            if (manualPollingIntervalId) {
+                clearInterval(manualPollingIntervalId);
+                manualPollingIntervalId = null;
+                
+                const resultArea = document.getElementById('manualPollResults');
+                resultArea.innerHTML += `<div style="color: blue">Manual polling stopped</div>`;
+                resultArea.scrollTop = resultArea.scrollHeight;
+            }
+        };
+        
+        // Function to open the polling test page
+        function openPollingTestPage() {
+            console.log('openPollingTestPage called');
+            
+            // First check for the global progress ID
+            let progressId = 'test';  // Default
+            
+            if (window.currentProgressId) {
+                console.log('Using global progress ID for test page:', window.currentProgressId);
+                progressId = window.currentProgressId;
+            } else {
+                // Try to get from input as fallback
+                const progressIdInput = document.getElementById('manualProgressId');
+                if (progressIdInput && progressIdInput.value.trim()) {
+                    progressId = progressIdInput.value.trim();
+                    console.log('Using input field progress ID for test page:', progressId);
+                } else {
+                    console.log('No progress ID found, defaulting to "test"');
+                }
+            }
+            
+            console.log('Opening polling test page with progress ID:', progressId);
+            window.open(`/polling-test/${progressId}`, '_blank');
         }
     });
 </script>

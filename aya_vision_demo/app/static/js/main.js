@@ -247,30 +247,65 @@ function setupImageModal() {
  * Sets up filtering and sorting functionality
  */
 function setupFilteringAndSorting() {
+    console.log('Starting setupFilteringAndSorting');
+    
     // Get filter and sort elements
     const filterDropdown = document.getElementById('filterDropdown');
     const sortDropdown = document.getElementById('sortDropdown');
     
-    if (!filterDropdown || !sortDropdown) return;
+    if (!filterDropdown || !sortDropdown) {
+        console.error('Filter or sort dropdown not found in DOM');
+        return;
+    }
+    
+    console.log('Filter dropdown found:', filterDropdown.id);
+    console.log('Sort dropdown found:', sortDropdown.id);
     
     // Get filter and sort items
     const filterItems = filterDropdown.querySelectorAll('.dropdown-item');
     const sortItems = sortDropdown.querySelectorAll('.dropdown-item');
     
-    // Get filter info elements
-    const filterInfoText = document.getElementById('filterInfoText');
-    const clearFilterBtn = document.getElementById('clearFilterBtn');
+    console.log('Filter items found:', filterItems.length);
+    console.log('Sort items found:', sortItems.length);
     
-    // Get all result cards
-    const resultCards = document.querySelectorAll('.result-card');
+    // Get filter info elements
+    const filterInfoText = document.getElementById('filterInfo');
+    
+    // Get all result items
+    const resultItems = document.querySelectorAll('.result-item');
+    
+    console.log('Result items found:', resultItems.length);
+    
+    // Debug: log data attributes of first few result items
+    if (resultItems.length > 0) {
+        console.log('Sample result item attributes:');
+        for (let i = 0; i < Math.min(3, resultItems.length); i++) {
+            const item = resultItems[i];
+            console.log(`Item ${i}:`, {
+                'data-detection-status': item.getAttribute('data-detection-status'),
+                'data-filename': item.getAttribute('data-filename'),
+                'data-subject': item.getAttribute('data-subject'),
+                'classList': Array.from(item.classList)
+            });
+        }
+    }
     
     // Initialize from session storage if available
     let currentFilter = sessionStorage.getItem('currentFilter') || 'all';
     let currentSort = sessionStorage.getItem('currentSort') || 'filename-asc';
     
+    console.log('Initial filter from session storage:', currentFilter);
+    console.log('Initial sort from session storage:', currentSort);
+    
+    // Clear any potentially bad stored values
+    if (!['all', 'detected', 'not-detected', 'unknown'].includes(currentFilter)) {
+        console.warn('Invalid filter value in session storage, resetting to "all"');
+        currentFilter = 'all';
+        sessionStorage.setItem('currentFilter', currentFilter);
+    }
+    
     // Apply initial filter and sort
-    applyFilter(currentFilter);
-    applySort(currentSort);
+    applyFilterAndSort();
     
     // Update active classes
     updateActiveClasses();
@@ -280,17 +315,20 @@ function setupFilteringAndSorting() {
         item.addEventListener('click', function(e) {
             e.preventDefault();
             
-            // Get filter value
-            const filter = this.dataset.filter;
+            console.log('Filter clicked:', this.dataset.filter);
             
-            // Apply filter
-            applyFilter(filter);
+            // Update active class
+            filterItems.forEach(i => i.classList.remove('active-option'));
+            this.classList.add('active-option');
+            
+            // Update current filter
+            currentFilter = this.dataset.filter;
+            
+            // Apply filter and sort
+            applyFilterAndSort();
             
             // Save to session storage
-            sessionStorage.setItem('currentFilter', filter);
-            
-            // Update active classes
-            updateActiveClasses();
+            sessionStorage.setItem('currentFilter', currentFilter);
         });
     });
     
@@ -299,129 +337,197 @@ function setupFilteringAndSorting() {
         item.addEventListener('click', function(e) {
             e.preventDefault();
             
-            // Get sort value
-            const sort = this.dataset.sort;
+            console.log('Sort clicked:', this.dataset.sort);
             
-            // Apply sort
-            applySort(sort);
+            // Update active class
+            sortItems.forEach(i => i.classList.remove('active-option'));
+            this.classList.add('active-option');
+            
+            // Update current sort
+            currentSort = this.dataset.sort;
+            
+            // Apply filter and sort
+            applyFilterAndSort();
             
             // Save to session storage
-            sessionStorage.setItem('currentSort', sort);
-            
-            // Update active classes
-            updateActiveClasses();
+            sessionStorage.setItem('currentSort', currentSort);
         });
     });
     
-    // Handle clear filter button
-    if (clearFilterBtn) {
-        clearFilterBtn.addEventListener('click', function(e) {
-            e.preventDefault();
-            
-            // Reset to 'all' filter
-            applyFilter('all');
-            
-            // Save to session storage
-            sessionStorage.setItem('currentFilter', 'all');
-            
-            // Update active classes
-            updateActiveClasses();
-        });
-    }
-    
     /**
-     * Applies the specified filter to the result cards
+     * Applies both filtering and sorting based on current selections
      */
-    function applyFilter(filter) {
-        // Update current filter
-        currentFilter = filter;
+    function applyFilterAndSort() {
+        console.log('Applying filter:', currentFilter, 'and sort:', currentSort);
         
-        // Show/hide cards based on filter
-        resultCards.forEach(card => {
-            const detectionResult = card.dataset.result;
+        // Get the current subject from data attribute
+        let subject = getSubjectFromDom();
+        console.log('Current subject:', subject);
+        
+        // First, filter the items
+        let visibleCount = 0;
+        let hiddenCount = 0;
+        
+        resultItems.forEach(item => {
+            const detectionStatus = item.getAttribute('data-detection-status');
+            const itemSubject = item.getAttribute('data-subject') || subject;
+            const filename = item.getAttribute('data-filename');
             
-            if (filter === 'all') {
-                card.classList.remove('hidden-item');
-            } else if (filter === 'detected' && detectionResult === 'true') {
-                card.classList.remove('hidden-item');
-            } else if (filter === 'not-detected' && detectionResult === 'false') {
-                card.classList.remove('hidden-item');
-            } else if (filter === 'unknown' && detectionResult === 'null') {
-                card.classList.remove('hidden-item');
+            console.log(`Filtering item: ${filename}, subject: ${itemSubject}, status: ${detectionStatus}`);
+            
+            let visible = false;
+            
+            if (currentFilter === 'all') {
+                visible = true;
+            } else if (currentFilter === 'detected' && detectionStatus === 'true') {
+                visible = true;
+            } else if (currentFilter === 'not-detected' && detectionStatus === 'false') {
+                visible = true;
+            } else if (currentFilter === 'unknown' && detectionStatus === 'unknown') {
+                visible = true;
+            }
+            
+            if (visible) {
+                console.log(`  - Showing item: ${filename} (matches filter: ${currentFilter})`);
+                item.classList.remove('hidden-item');
+                visibleCount++;
             } else {
-                card.classList.add('hidden-item');
+                console.log(`  - Hiding item: ${filename} (doesn't match filter: ${currentFilter})`);
+                item.classList.add('hidden-item');
+                hiddenCount++;
             }
         });
         
-        // Update filter info text
-        if (filterInfoText) {
-            const subject = document.querySelector('.result-card')?.dataset.subject || 'items';
-            
-            if (filter === 'all') {
-                filterInfoText.innerHTML = 'Showing all images';
-                clearFilterBtn.classList.add('d-none');
-            } else if (filter === 'detected') {
-                filterInfoText.innerHTML = `Showing only images with <strong>${subject} detected</strong>`;
-                clearFilterBtn.classList.remove('d-none');
-            } else if (filter === 'not-detected') {
-                filterInfoText.innerHTML = `Showing only images with <strong>no ${subject} detected</strong>`;
-                clearFilterBtn.classList.remove('d-none');
-            } else if (filter === 'unknown') {
-                filterInfoText.innerHTML = 'Showing only images with <strong>unknown detection status</strong>';
-                clearFilterBtn.classList.remove('d-none');
-            }
+        console.log(`Filtering complete: ${visibleCount} visible items, ${hiddenCount} hidden items`);
+        
+        // Count visible items after filtering
+        const visibleItems = Array.from(resultItems).filter(item => !item.classList.contains('hidden-item'));
+        console.log(`Filtered to ${visibleItems.length} visible items out of ${resultItems.length} total`);
+        
+        // Then, sort the visible items
+        const resultsContainer = document.getElementById('results-container');
+        
+        if (!resultsContainer) {
+            console.error('Results container not found');
+            return;
         }
-    }
-    
-    /**
-     * Applies the specified sort to the result cards
-     */
-    function applySort(sort) {
-        // Update current sort
-        currentSort = sort;
         
-        // Get the container
-        const container = document.querySelector('.row.results-container');
-        
-        // Get all cards as array for sorting
-        const cards = Array.from(resultCards);
-        
-        // Sort cards
-        cards.sort((a, b) => {
-            if (sort === 'filename-asc') {
-                return a.dataset.filename.localeCompare(b.dataset.filename);
-            } else if (sort === 'filename-desc') {
-                return b.dataset.filename.localeCompare(a.dataset.filename);
-            } else if (sort === 'status-asc') {
-                // Sort by status: false, null, true (No, Unknown, Yes)
-                const statusA = a.dataset.result;
-                const statusB = b.dataset.result;
+        console.log('Sorting visible items');
+        visibleItems.sort((a, b) => {
+            if (currentSort === 'filename-asc') {
+                return a.getAttribute('data-filename').localeCompare(b.getAttribute('data-filename'));
+            } else if (currentSort === 'filename-desc') {
+                return b.getAttribute('data-filename').localeCompare(a.getAttribute('data-filename'));
+            } else if (currentSort === 'status-asc') {
+                // Sort order: false, unknown, true
+                const aStatus = a.getAttribute('data-detection-status');
+                const bStatus = b.getAttribute('data-detection-status');
                 
-                if (statusA === 'false' && statusB !== 'false') return -1;
-                if (statusA === 'null' && statusB === 'true') return -1;
-                if (statusA === 'null' && statusB === 'false') return 1;
-                if (statusA === 'true') return 1;
-                if (statusB === 'true') return -1;
+                console.log(`Comparing for sort: ${a.getAttribute('data-filename')} (${aStatus}) vs ${b.getAttribute('data-filename')} (${bStatus})`);
+                
+                if (aStatus === bStatus) return 0;
+                if (aStatus === 'false') return -1;
+                if (bStatus === 'false') return 1;
+                if (aStatus === 'unknown') return -1;
+                if (bStatus === 'unknown') return 1;
                 return 0;
-            } else if (sort === 'status-desc') {
-                // Sort by status: true, null, false (Yes, Unknown, No)
-                const statusA = a.dataset.result;
-                const statusB = b.dataset.result;
+            } else if (currentSort === 'status-desc') {
+                // Sort order: true, unknown, false
+                const aStatus = a.getAttribute('data-detection-status');
+                const bStatus = b.getAttribute('data-detection-status');
                 
-                if (statusA === 'true' && statusB !== 'true') return -1;
-                if (statusA === 'null' && statusB === 'false') return -1;
-                if (statusA === 'null' && statusB === 'true') return 1;
-                if (statusA === 'false') return 1;
-                if (statusB === 'false') return -1;
+                if (aStatus === bStatus) return 0;
+                if (aStatus === 'true') return -1;
+                if (bStatus === 'true') return 1;
+                if (aStatus === 'unknown') return -1;
+                if (bStatus === 'unknown') return 1;
                 return 0;
             }
             return 0;
         });
         
-        // Reorder cards in the DOM
-        cards.forEach(card => {
-            container.appendChild(card.parentElement);
+        // Reorder the DOM elements
+        console.log('Reordering DOM elements');
+        visibleItems.forEach(item => {
+            resultsContainer.appendChild(item);
         });
+        
+        // Update filter info text
+        updateFilterInfoText();
+    }
+    
+    /**
+     * Gets the current subject from the DOM in a reliable way
+     */
+    function getSubjectFromDom() {
+        // Try multiple sources to get the subject reliably
+        
+        // First try: get from dropdown button with data-subject
+        const fromDropdown = filterDropdown.getAttribute('data-subject');
+        if (fromDropdown) {
+            console.log('Got subject from dropdown:', fromDropdown);
+            return fromDropdown;
+        }
+        
+        // Second try: get from result items if available
+        if (resultItems.length > 0) {
+            const fromItem = resultItems[0].getAttribute('data-subject');
+            if (fromItem) {
+                console.log('Got subject from first result item:', fromItem);
+                return fromItem;
+            }
+        }
+        
+        // Fallback
+        console.log('Using fallback subject: "item"');
+        return 'item';
+    }
+    
+    /**
+     * Updates the filter info text based on current selections
+     */
+    function updateFilterInfoText() {
+        if (!filterInfoText) {
+            console.warn('Filter info text element not found');
+            return;
+        }
+        
+        let filterText = '';
+        let sortText = '';
+        
+        // Get subject from the DOM
+        const subject = getSubjectFromDom();
+        console.log('Using subject for filter text:', subject);
+        
+        // Handle pluralization
+        const pluralSuffix = subject.endsWith('s') ? '' : 's';
+        
+        // Get filter text
+        if (currentFilter === 'all') {
+            filterText = 'all images';
+        } else if (currentFilter === 'detected') {
+            filterText = `images with ${subject}${pluralSuffix} detected`;
+        } else if (currentFilter === 'not-detected') {
+            filterText = `images with no ${subject}${pluralSuffix}`;
+        } else if (currentFilter === 'unknown') {
+            filterText = 'images with unknown status';
+        }
+        
+        // Get sort text
+        if (currentSort === 'filename-asc') {
+            sortText = 'filename (A-Z)';
+        } else if (currentSort === 'filename-desc') {
+            sortText = 'filename (Z-A)';
+        } else if (currentSort === 'status-asc') {
+            sortText = `${subject} status (No → Yes)`;
+        } else if (currentSort === 'status-desc') {
+            sortText = `${subject} status (Yes → No)`;
+        }
+        
+        // Update the info text
+        const newText = `Showing ${filterText}, sorted by ${sortText}`;
+        console.log('Updating filter info text:', newText);
+        filterInfoText.textContent = newText;
     }
     
     /**
@@ -431,21 +537,25 @@ function setupFilteringAndSorting() {
         // Update filter active class
         filterItems.forEach(item => {
             if (item.dataset.filter === currentFilter) {
-                item.classList.add('active');
+                item.classList.add('active-option');
+                console.log(`Set active filter option: ${item.dataset.filter}`);
             } else {
-                item.classList.remove('active');
+                item.classList.remove('active-option');
             }
         });
         
         // Update sort active class
         sortItems.forEach(item => {
             if (item.dataset.sort === currentSort) {
-                item.classList.add('active');
+                item.classList.add('active-option');
+                console.log(`Set active sort option: ${item.dataset.sort}`);
             } else {
-                item.classList.remove('active');
+                item.classList.remove('active-option');
             }
         });
     }
+    
+    console.log('setupFilteringAndSorting completed');
 }
 
 /**

@@ -1,0 +1,319 @@
+{% extends "base.html" %}
+
+{% block title %}Enhanced Analysis Progress - AYA Vision Detection Demo{% endblock %}
+
+{% block extra_css %}
+<style>
+    .progress-container {
+        margin-top: 20px;
+        margin-bottom: 20px;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 15px;
+        background-color: #f8f9fa;
+    }
+    .progress {
+        height: 25px !important;
+        background-color: #e9ecef !important;
+        border-radius: 0.25rem !important;
+        overflow: hidden !important;
+        margin-bottom: 10px !important;
+        box-shadow: inset 0 1px 2px rgba(0,0,0,0.1) !important;
+        position: relative !important;
+    }
+    .progress-bar {
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: center !important;
+        overflow: hidden !important;
+        color: #fff !important;
+        text-align: center !important;
+        white-space: nowrap !important;
+        background-color: #0d6efd !important;
+        transition: width 0.3s ease !important;
+        min-width: 2% !important;
+        font-weight: bold !important;
+        font-size: 14px !important;
+        position: absolute !important;
+        height: 100% !important;
+        left: 0 !important;
+        top: 0 !important;
+    }
+    .progress-info {
+        text-align: center;
+        margin-top: 10px;
+        font-size: 1rem;
+        color: #495057;
+        font-weight: bold;
+    }
+    .analysis-status {
+        margin-top: 15px;
+        display: block;
+        font-size: 1rem;
+        border-left: 4px solid #0d6efd;
+        padding-left: 10px;
+    }
+    .progress-container.active {
+        border-left: 4px solid #0d6efd;
+        animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+        0% { background-color: #f8f9fa; }
+        50% { background-color: #e9ecef; }
+        100% { background-color: #f8f9fa; }
+    }
+    .status-alert {
+        background-color: #f0f9ff;
+        border-left: 4px solid #0d6efd;
+        padding-left: 15px;
+    }
+    .status-message {
+        animation: fadeColorChange 2s infinite;
+    }
+    @keyframes fadeColorChange {
+        0% { color: #0d6efd; }
+        50% { color: #495057; }
+        100% { color: #0d6efd; }
+    }
+    .progress-info::before {
+        content: "● ";
+        display: inline-block;
+        margin-right: 5px;
+        animation: colorPulse 1s infinite;
+    }
+    @keyframes colorPulse {
+        0% { color: #0d6efd; }
+        50% { color: #28a745; }
+        100% { color: #0d6efd; }
+    }
+    .debug-panel {
+        margin-top: 20px;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+        padding: 10px;
+        background-color: #f8f9fa;
+        display: none;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h2 class="mb-0"><i class="fas fa-microscope me-2"></i>Enhanced Analysis - Processing</h2>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Your enhanced analysis of {{ subject }} detection is in progress. Please wait while we analyze the images.
+                </div>
+                
+                <div class="progress-container active" id="progress-container">
+                    <h4>Analysis Progress</h4>
+                    
+                    <!-- Bare minimum progress bar implementation -->
+                    <div style="width: 100%; background-color: #f0f0f0; border: 1px solid #ddd; height: 40px; position: relative; border-radius: 4px; overflow: hidden;">
+                        <!-- Main progress fill - using a separate non-transitioning element -->
+                        <div id="progress-fill" style="position: absolute; top: 0; left: 0; height: 100%; width: 2%; background-color: #0d6efd;"></div>
+                        <!-- Text overlay -->
+                        <div style="position: absolute; width: 100%; text-align: center; line-height: 40px; color: #000; font-weight: bold;">
+                            <span id="progress-text">0%</span>
+                        </div>
+                        <!-- Debug element to display raw values -->
+                        <div id="debug-progress" style="position: absolute; right: 5px; top: 2px; font-size: 10px; color: #666;"></div>
+                    </div>
+                    
+                    <div style="margin-top: 15px; text-align: center;">
+                        <span id="analysis-status">Preparing analysis...</span>
+                    </div>
+                    
+                    <div class="alert alert-info mt-3 status-alert" id="analysis-status-alert" style="margin-top: 15px;">
+                        <i class="fas fa-spinner fa-spin me-2"></i>
+                        <span id="status-message" class="status-message" style="font-size: 1.1rem;">Starting enhanced analysis...</span>
+                    </div>
+                </div>
+                
+                <div class="debug-panel" id="debug-panel">
+                    <h5>Debug Information</h5>
+                    <div><strong>Progress ID:</strong> <span id="debug-progress-id">{{ progress_id }}</span></div>
+                    <div id="debug-log" style="font-family: monospace; margin-top: 10px; max-height: 200px; overflow-y: auto; background-color: #f5f5f5; padding: 10px; border: 1px solid #ddd;"></div>
+                </div>
+                
+                <div class="d-flex justify-content-between mt-4">
+                    <a href="{{ url_for('main.results') }}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>Back to Results
+                    </a>
+                    <a href="{{ url_for('main.enhanced_results') }}" class="btn btn-primary" id="view-results-btn" style="display: none;">
+                        <i class="fas fa-eye me-2"></i>View Results
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Check if debug mode is active
+        const isDebug = new URLSearchParams(window.location.search).has('debug');
+        if (isDebug) {
+            document.getElementById('debug-panel').style.display = 'block';
+        }
+        
+        // Get progress ID from the template
+        const progressId = "{{ progress_id }}";
+        console.log('Starting progress tracking for ID:', progressId);
+        
+        // Update the debug panel
+        document.getElementById('debug-progress-id').textContent = progressId;
+        logDebug(`Starting progress polling for ID: ${progressId}`);
+        
+        // Function to add a log message to the debug panel
+        function logDebug(message) {
+            const debugLog = document.getElementById('debug-log');
+            const timestamp = new Date().toLocaleTimeString();
+            debugLog.innerHTML += `<div>[${timestamp}] ${message}</div>`;
+            debugLog.scrollTop = debugLog.scrollHeight;
+        }
+        
+        // Simple function to update progress display
+        function updateProgressUI(percent, statusText) {
+            // Get DOM elements
+            const progressFill = document.getElementById('progress-fill');
+            const progressText = document.getElementById('progress-text');
+            const statusMessage = document.getElementById('status-message');
+            
+            // Ensure percent is valid and between 2-100
+            percent = Math.max(2, Math.min(100, Math.round(percent)));
+            
+            // Update progress bar width directly - no transitions
+            progressFill.style.width = percent + '%';
+            
+            // Update text content
+            progressText.textContent = percent + '%';
+            
+            // Update status message if provided
+            if (statusText) {
+                statusMessage.innerHTML = statusText;
+            }
+            
+            // Log updates for debugging
+            logDebug(`Progress updated to ${percent}%: ${statusText || ''}`);
+        }
+        
+        // Variables to track polling
+        let isPolling = true;
+        let pollingTimeoutId = null;
+        let pollCount = 0;
+        let lastProgress = 0;
+        
+        // Function to poll once for progress
+        function pollOnce() {
+            pollCount++;
+            logDebug(`Poll #${pollCount} started`);
+            
+            // Clear any existing timeout
+            if (pollingTimeoutId) {
+                clearTimeout(pollingTimeoutId);
+                pollingTimeoutId = null;
+            }
+            
+            // Create unique URL with timestamp and random value to prevent caching
+            const timestamp = new Date().getTime();
+            const random = Math.floor(Math.random() * 1000000);
+            const url = `/api/enhanced-analysis-progress/${progressId}?_=${timestamp}&r=${random}&pc=${pollCount}`;
+            
+            // Debug element update
+            document.getElementById('debug-progress').textContent = `Poll #${pollCount}...`;
+            
+            fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache',
+                    'Expires': '0'
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                logDebug(`Poll #${pollCount} response: ${JSON.stringify(data)}`);
+                
+                if (data && 'percent' in data) {
+                    const percent = Math.max(5, Math.min(100, parseInt(data.percent || 0)));
+                    const completed = data.completed || 0;
+                    const total = data.total || 1;
+                    
+                    // Update progress UI based on status
+                    if (data.status === 'processing') {
+                        // Create status HTML without filename info
+                        const statusHTML = `<strong>Enhanced Analysis Progress: ${completed}/${total} images processed (${percent}%)</strong>`;
+                        
+                        // Update UI with only the count information, no filename
+                        updateProgressUI(percent, statusHTML);
+                        document.getElementById('analysis-status').textContent = `Processing image ${completed} of ${total}`;
+                    } else if (data.status === 'initialized') {
+                        updateProgressUI(2, '<strong>Analysis initialized, waiting for processing to start...</strong>');
+                    } else if (data.status === 'error') {
+                        // Handle error state
+                        const statusAlert = document.getElementById('analysis-status-alert');
+                        statusAlert.classList.remove('alert-info');
+                        statusAlert.classList.add('alert-danger');
+                        
+                        const errorMsg = data.error || 'An unknown error occurred during analysis';
+                        updateProgressUI(percent, `<strong>Error:</strong> ${errorMsg}`);
+                        
+                        // Show back button, hide the view results button
+                        document.getElementById('view-results-btn').style.display = 'none';
+                        
+                        // Stop polling
+                        isPolling = false;
+                        return;
+                    } else if (data.status === 'complete' || percent >= 100) {
+                        // Final update for completed state
+                        updateProgressUI(100, '<strong>Analysis complete!</strong>');
+                        document.getElementById('analysis-status').textContent = 'Complete';
+                        
+                        // Show the view results button
+                        document.getElementById('view-results-btn').style.display = 'block';
+                        
+                        // Stop polling
+                        isPolling = false;
+                        return;
+                    }
+                    
+                    // Schedule next poll if we're still polling
+                    if (isPolling) {
+                        const pollInterval = 3000; // 3 seconds
+                        pollingTimeoutId = setTimeout(pollOnce, pollInterval);
+                    }
+                } else {
+                    logDebug(`Invalid progress data format: ${JSON.stringify(data)}`);
+                    
+                    // Schedule retry with backoff
+                    const backoff = Math.min(10000, 2000 * Math.pow(1.5, pollCount % 5));
+                    pollingTimeoutId = setTimeout(pollOnce, backoff);
+                }
+            })
+            .catch(error => {
+                logDebug(`Error during poll #${pollCount}: ${error.message}`);
+                
+                // Schedule retry with backoff
+                const backoff = Math.min(10000, 2000 * Math.pow(1.5, pollCount % 5));
+                pollingTimeoutId = setTimeout(pollOnce, backoff);
+            });
+        }
+        
+        // Start polling immediately
+        pollOnce();
+    });
+</script>
+{% endblock %} 

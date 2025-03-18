@@ -210,9 +210,14 @@
                     </div>
                 </div>
             </div>
-            <a href="{{ url_for('main.results') }}" class="btn btn-primary">
-                <i class="fas fa-arrow-left me-2"></i>Back to Initial Results
-            </a>
+            <div>
+                <a href="{{ url_for('main.enhanced_analysis', new='true') }}" class="btn btn-success me-2">
+                    <i class="fas fa-microscope me-2"></i>Start New Enhanced Analysis
+                </a>
+                <a href="{{ url_for('main.results') }}" class="btn btn-primary">
+                    <i class="fas fa-arrow-left me-2"></i>Back to Initial Results
+                </a>
+            </div>
         </div>
         <div class="filter-info" id="filterInfo">
             Showing all enhanced analysis results, sorted by filename (A-Z)

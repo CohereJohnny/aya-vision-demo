@@ -65,20 +65,92 @@
         margin-top: 10px;
         font-weight: bold;
     }
+    /* Updated progress styles for better visibility */
     .progress {
         display: none;
         margin-top: 20px;
+        height: 30px !important;
+        background-color: #e9ecef !important;
+        box-shadow: inset 0 1px 2px rgba(0,0,0,0.1) !important;
+        overflow: hidden !important;
+        border-radius: 4px !important;
+    }
+    .progress-bar {
+        transition: width 0.3s ease !important;
+        font-weight: bold !important;
+        font-size: 14px !important;
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+        color: white !important;
+        text-align: center !important;
+        background-color: #007bff !important;
+        height: 100% !important;
     }
     .progress-info {
         display: none;
         text-align: center;
         margin-top: 5px;
-        font-size: 0.9rem;
-        color: #6c757d;
+        margin-bottom: 10px;
+        font-size: 1rem;
+        color: #495057;
+        font-weight: bold;
     }
     .upload-status {
         margin-top: 10px;
         display: none;
+        padding: 15px;
+        font-size: 1.1rem;
+    }
+    /* Phases of processing */
+    .phase-indicator {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 10px;
+        margin-bottom: 15px;
+        position: relative;
+    }
+    .phase-indicator::before {
+        content: '';
+        position: absolute;
+        top: 15px;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background-color: #e9ecef;
+        z-index: 1;
+    }
+    .phase {
+        position: relative;
+        z-index: 2;
+        text-align: center;
+    }
+    .phase .circle {
+        width: 35px;
+        height: 35px;
+        border-radius: 50%;
+        background-color: #e9ecef;
+        border: 4px solid #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 5px;
+        color: #fff;
+        font-weight: bold;
+    }
+    .phase .label {
+        font-size: 0.9rem;
+        color: #6c757d;
+    }
+    .phase.active .circle {
+        background-color: #007bff;
+    }
+    .phase.active .label {
+        color: #007bff;
+        font-weight: bold;
+    }
+    .phase.complete .circle {
+        background-color: #28a745;
     }
 </style>
 {% endblock %}
@@ -119,6 +191,21 @@
                         <div class="file-count mt-3" id="file-count">0 files selected</div>
                         
                         <div class="preview-container" id="preview-container"></div>
+                    </div>
+                    
+                    <div class="phase-indicator" id="phase-indicator" style="display: none;">
+                        <div class="phase" id="phase-upload">
+                            <div class="circle">1</div>
+                            <div class="label">Upload</div>
+                        </div>
+                        <div class="phase" id="phase-analysis">
+                            <div class="circle">2</div>
+                            <div class="label">Analysis</div>
+                        </div>
+                        <div class="phase" id="phase-complete">
+                            <div class="circle">3</div>
+                            <div class="label">Complete</div>
+                        </div>
                     </div>
                     
                     <div class="progress">
@@ -416,7 +503,39 @@
             }
         }
         
-        // Function to poll for analysis progress
+        // Function to update the phase indicator
+        function updatePhaseIndicator(phase) {
+            const phaseIndicator = document.getElementById('phase-indicator');
+            const phaseUpload = document.getElementById('phase-upload');
+            const phaseAnalysis = document.getElementById('phase-analysis');
+            const phaseComplete = document.getElementById('phase-complete');
+            
+            // Show the phase indicator
+            phaseIndicator.style.display = 'flex';
+            
+            // Reset all phases
+            phaseUpload.classList.remove('active', 'complete');
+            phaseAnalysis.classList.remove('active', 'complete');
+            phaseComplete.classList.remove('active', 'complete');
+            
+            // Update phases based on current phase
+            switch(phase) {
+                case 'upload':
+                    phaseUpload.classList.add('active');
+                    break;
+                case 'analysis':
+                    phaseUpload.classList.add('complete');
+                    phaseAnalysis.classList.add('active');
+                    break;
+                case 'complete':
+                    phaseUpload.classList.add('complete');
+                    phaseAnalysis.classList.add('complete');
+                    phaseComplete.classList.add('active');
+                    break;
+            }
+        }
+        
+        // Function to poll for analysis progress - enhanced version for inline display
         function pollAnalysisProgress(progressId) {
             if (!progressId) {
                 console.error('No progress ID provided for polling');
@@ -430,6 +549,14 @@
             if (progressPollInterval) {
                 clearInterval(progressPollInterval);
             }
+            
+            // Update phase indicator to show analysis phase
+            updatePhaseIndicator('analysis');
+            
+            // Ensure progress elements are visible
+            progress.style.display = 'block';
+            progressInfo.style.display = 'block';
+            uploadStatus.style.display = 'block';
             
             // Set up polling interval
             progressPollInterval = setInterval(function() {
@@ -448,18 +575,67 @@
                         const analysisPercent = data.percent || 0;
                         const totalPercent = 50 + Math.floor(analysisPercent / 2); // Map 0-100 to 50-100
                         
+                        // Log the values for debugging
                         console.log(`Analysis progress: ${analysisPercent}%, Total progress: ${totalPercent}%`);
                         
-                        progressBar.style.width = totalPercent + '%';
+                        // Get a direct reference to the progress bar element
+                        const progressBar = document.querySelector('.progress-bar');
+                        console.log('Progress bar element:', progressBar);
+                        
+                        // Update width with inline style and important flag
+                        progressBar.style.cssText = `width: ${totalPercent}% !important`;
+                        console.log(`Set progress bar width to: ${totalPercent}%`);
+                        
+                        // Also update the text content
+                        progressBar.textContent = `${totalPercent}%`;
+                        
+                        // Update percentage display
                         uploadPercentage.textContent = totalPercent + '%';
                         
-                        // Update status message
-                        if (data.status === 'processing') {
-                            statusMessage.textContent = `Processing image ${data.completed} of ${data.total}: ${data.current_file}`;
+                        // Update status message with more detailed information
+                        if (data.status === 'initialized') {
+                            statusMessage.textContent = 'Analysis starting...';
+                        } else if (data.status === 'processing') {
+                            if (data.current_file) {
+                                statusMessage.textContent = `Processing image ${data.completed} of ${data.total}: ${data.current_file}`;
+                            } else {
+                                statusMessage.textContent = `Processing images (${data.completed}/${data.total})...`;
+                            }
                         } else if (data.status === 'complete') {
-                            progressBar.style.width = '100%';
+                            // Get a direct reference to ensure we're updating the right element
+                            const progressBar = document.querySelector('.progress-bar');
+                            progressBar.style.cssText = `width: 100% !important`;
+                            progressBar.textContent = '100%';
+                            
                             uploadPercentage.textContent = '100%';
-                            statusMessage.textContent = 'Analysis complete. Redirecting...';
+                            statusMessage.textContent = 'Analysis complete. Redirecting to results...';
+                            uploadStatus.classList.remove('alert-info');
+                            uploadStatus.classList.add('alert-success');
+                            clearInterval(progressPollInterval);
+                            
+                            // Update phase indicator to show complete phase
+                            updatePhaseIndicator('complete');
+                            
+                            // Redirect to results page after a short delay
+                            setTimeout(function() {
+                                // Use data.result_id directly from the API response
+                                // Fall back to other IDs only if data.result_id is not available
+                                const redirectId = data.result_id || window.resultId || '';
+                                console.log(`Redirecting to results with ID: ${redirectId}`);
+                                
+                                if (redirectId) {
+                                    window.location.href = `/analysis-results/${redirectId}`;
+                                } else {
+                                    console.error('No result ID available for redirect');
+                                    statusMessage.textContent = 'Error: No result ID available for redirect';
+                                    uploadStatus.classList.remove('alert-info');
+                                    uploadStatus.classList.add('alert-danger');
+                                }
+                            }, 1500);
+                        } else if (data.status === 'error') {
+                            statusMessage.textContent = `Error: ${data.error || 'Unknown error'}`;
+                            uploadStatus.classList.remove('alert-info');
+                            uploadStatus.classList.add('alert-danger');
                             clearInterval(progressPollInterval);
                         }
                         
@@ -496,11 +672,24 @@
             uploadButton.disabled = true;
             uploadButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Uploading...';
             
-            // Show progress elements
+            // Show progress elements - explicitly set display style
             progress.style.display = 'block';
             progressInfo.style.display = 'block';
             uploadStatus.style.display = 'block';
+            
+            // Initialize the progress bar explicitly to ensure it starts at 0%
+            const progressBar = document.querySelector('.progress-bar');
+            progressBar.style.cssText = 'width: 0% !important';
+            progressBar.textContent = '0%';
+            uploadPercentage.textContent = '0%';
+            
+            // Log that we're starting
+            console.log('Starting upload process, progress bar initialized at 0%');
+            
             statusMessage.textContent = 'Preparing files...';
+            
+            // Update phase indicator to show upload phase
+            updatePhaseIndicator('upload');
             
             // Reset progress tracking variables
             lastProgressUpdate = 0;
@@ -570,8 +759,19 @@
                 if (e.lengthComputable) {
                     // Calculate percentage - upload is 50% of the total process
                     const percentComplete = Math.round((e.loaded / e.total) * 50);
-                    progressBar.style.width = percentComplete + '%';
+                    
+                    // Get a direct reference to the progress bar element to ensure we're updating the right one
+                    const progressBar = document.querySelector('.progress-bar');
+                    
+                    // Update with inline style and important flag
+                    progressBar.style.cssText = `width: ${percentComplete}% !important`;
+                    progressBar.textContent = `${percentComplete}%`;
+                    
+                    // Also update the text display
                     uploadPercentage.textContent = percentComplete + '%';
+                    
+                    // Log the update for debugging
+                    console.log(`Upload progress: ${percentComplete}% (${formatBytes(e.loaded)} of ${formatBytes(e.total)})`);
                     
                     // Update last progress
                     lastProgressUpdate = percentComplete;
@@ -612,9 +812,15 @@
                     clearTimeout(progressTimeout);
                 }
                 
-                statusMessage.textContent = 'Upload complete. Processing images...';
-                progressBar.style.width = '50%';
+                // Get a direct reference to the progress bar element
+                const progressBar = document.querySelector('.progress-bar');
+                progressBar.style.cssText = `width: 50% !important`;
+                progressBar.textContent = '50%';
+                
                 uploadPercentage.textContent = '50%';
+                statusMessage.textContent = 'Upload complete. Processing images...';
+                
+                console.log('Upload complete, progress set to 50%');
             });
             
             // Handle errors
@@ -647,24 +853,28 @@
                             console.log('Server response:', response);
                             
                             if (response.success) {
+                                // Store the result_id globally
+                                if (response.result_id) {
+                                    console.log(`Received result_id: ${response.result_id}`);
+                                    window.resultId = response.result_id;
+                                } else {
+                                    console.warn('No result_id received from server');
+                                }
+                                
                                 // Start polling for analysis progress
                                 if (response.progress_id) {
                                     console.log(`Received progress_id: ${response.progress_id}`);
                                     pollAnalysisProgress(response.progress_id);
                                     
                                     // Set progress bar to 50% to indicate upload is complete
-                                    progressBar.style.width = '50%';
+                                    const progressBar = document.querySelector('.progress-bar');
+                                    progressBar.style.cssText = 'width: 50% !important';
+                                    progressBar.textContent = '50%';
                                     uploadPercentage.textContent = '50%';
                                     statusMessage.textContent = 'Upload complete. Starting image analysis...';
                                 } else {
                                     console.warn('No progress_id received from server');
                                 }
-                                
-                                // Redirect after a short delay
-                                setTimeout(function() {
-                                    console.log('Redirecting to results page');
-                                    window.location.href = response.redirect;
-                                }, 3000); // Increased delay to allow more time for progress updates
                             } else {
                                 uploadStatus.classList.remove('alert-info');
                                 uploadStatus.classList.add('alert-danger');

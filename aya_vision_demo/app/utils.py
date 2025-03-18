@@ -311,39 +311,75 @@ def process_enhanced_analysis(
         List[Dict]: List of results with original image info and enhanced analysis results
     """
     enhanced_results = []
+    total_images = len(images)
+    
+    # Log the start of processing with callback info
+    logger.info(f"Starting enhanced analysis for {total_images} images")
+    logger.info(f"Progress callback provided: {progress_callback is not None}")
     
     for i, image in enumerate(images):
-        logger.info(f"Performing enhanced analysis for image: {image['filename']}")
+        # Log current image processing
+        current_image = i + 1
+        logger.info(f"Processing image {current_image}/{total_images}: {image['filename']}")
         
-        # We already have the base64 image from the initial analysis
-        base64_image = image['full_image']
-        mime_type = image['mime_type']
+        try:
+            # We already have the base64 image from the initial analysis
+            base64_image = image['full_image']
+            mime_type = image['mime_type']
+            
+            # Analyze the image with the enhanced prompt
+            analysis_result = analyze_image_with_cohere(
+                api_key=api_key,
+                base64_image=base64_image,
+                mime_type=mime_type,
+                model_name=model_name,
+                prompt=prompt,
+                temperature=0.7  # Higher temperature for more creative responses
+            )
+            
+            # Add to results
+            enhanced_results.append({
+                'filename': image['filename'],
+                'thumbnail': image['thumbnail'],
+                'full_image': base64_image,
+                'mime_type': mime_type,
+                'detection_result': image['detection_result'],  # Keep the original detection result
+                'enhanced_analysis': analysis_result['response'] if analysis_result['success'] else None,
+                'success': analysis_result['success'],
+                'error': analysis_result.get('error', None),
+                'raw_response': analysis_result.get('raw_response', None)
+            })
+            
+            # Report progress if callback is provided - AFTER processing each image
+            if progress_callback:
+                logger.info(f"Calling progress callback for index {i}, file {image['filename']}")
+                try:
+                    progress_callback(i, image['filename'])
+                    logger.info(f"Progress callback successfully called")
+                except Exception as callback_error:
+                    logger.error(f"Error in progress callback: {str(callback_error)}")
+            else:
+                logger.info(f"No progress callback available to report progress")
         
-        # Analyze the image with the enhanced prompt
-        analysis_result = analyze_image_with_cohere(
-            api_key=api_key,
-            base64_image=base64_image,
-            mime_type=mime_type,
-            model_name=model_name,
-            prompt=prompt,
-            temperature=0.7  # Higher temperature for more creative responses
-        )
-        
-        # Add to results
-        enhanced_results.append({
-            'filename': image['filename'],
-            'thumbnail': image['thumbnail'],
-            'full_image': base64_image,
-            'mime_type': mime_type,
-            'detection_result': image['detection_result'],  # Keep the original detection result
-            'enhanced_analysis': analysis_result['response'] if analysis_result['success'] else None,
-            'success': analysis_result['success'],
-            'error': analysis_result.get('error', None),
-            'raw_response': analysis_result.get('raw_response', None)
-        })
-        
-        # Report progress if callback is provided
-        if progress_callback:
-            progress_callback(i, image['filename'])
+        except Exception as e:
+            logger.error(f"Error processing enhanced analysis for image {image['filename']}: {str(e)}")
+            # Add a failed result to the list
+            enhanced_results.append({
+                'filename': image['filename'],
+                'thumbnail': image.get('thumbnail', None),
+                'detection_result': image.get('detection_result', None),
+                'enhanced_analysis': None,
+                'success': False,
+                'error': str(e),
+                'raw_response': None
+            })
+            
+            # Still call the progress callback even if there was an error
+            if progress_callback:
+                try:
+                    progress_callback(i, image['filename'])
+                except Exception as callback_error:
+                    logger.error(f"Error in progress callback after processing error: {str(callback_error)}")
     
+    logger.info(f"Completed enhanced analysis for {len(enhanced_results)}/{total_images} images")
     return enhanced_results
