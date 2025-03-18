@@ -63,7 +63,7 @@ def encode_image_to_base64(image_file) -> Tuple[str, str]:
     
     return encoded_image, mime_type
 
-def create_thumbnail(image_data: bytes, size: Tuple[int, int] = (100, 100)) -> str:
+def create_thumbnail(image_data: bytes, size: Tuple[int, int] = (300, 300)) -> str:
     """
     Create a thumbnail from image data.
     
@@ -76,11 +76,31 @@ def create_thumbnail(image_data: bytes, size: Tuple[int, int] = (100, 100)) -> s
     """
     # Create a thumbnail
     image = Image.open(io.BytesIO(image_data))
-    image.thumbnail(size)
     
-    # Save the thumbnail to a bytes buffer
+    # Calculate new dimensions while preserving aspect ratio
+    width, height = image.size
+    aspect_ratio = width / height
+    
+    if width > height:
+        new_width = min(width, size[0])
+        new_height = int(new_width / aspect_ratio)
+    else:
+        new_height = min(height, size[1])
+        new_width = int(new_height * aspect_ratio)
+    
+    # Resize the image with high quality (LANCZOS is high quality)
+    image = image.resize((new_width, new_height), Image.LANCZOS)
+    
+    # Save the thumbnail to a bytes buffer with high quality
     buffer = io.BytesIO()
-    image.save(buffer, format=image.format)
+    
+    # For JPEG format, specify high quality
+    if image.format == 'JPEG':
+        image.save(buffer, format='JPEG', quality=90)
+    else:
+        # For other formats, use their default settings
+        image.save(buffer, format=image.format or 'PNG')
+    
     buffer.seek(0)
     
     # Encode to base64
