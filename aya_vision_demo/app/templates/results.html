@@ -366,21 +366,24 @@
 {% block extra_js %}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Force CSS update for hidden items - adding this early and with !important
+        // Enforce hidden-item CSS at the very start with !important and high specificity
         const style = document.createElement('style');
-        style.textContent = '.hidden-item { display: none !important; }';
+        style.textContent = 'body .hidden-item, body .row .hidden-item, #results-container .hidden-item { display: none !important; }';
         document.head.appendChild(style);
 
-        console.log('DOM content loaded, initializing filtering/sorting...');
+        console.log('DOM content loaded, initializing filtering/sorting with enhanced CSS priority...');
         
         // Subject for pluralization
         const subject = "{{ subject }}";
         
         // Handle pluralization for subject in the UI
         function getPlural(word) {
-            // Simple pluralization - add 's' if the word doesn't end with 's'
             return word.endsWith('s') ? '' : 's';
         }
+        
+        // Initialize state variables
+        let currentFilter = 'all';
+        let currentSort = 'filename-asc';
         
         // Update plural markers
         const updatePluralMarkers = () => {
@@ -400,26 +403,21 @@
         
         updatePluralMarkers();
         
-        // Setup Debug Panel
+        // Set up debug panel
         const debugPanel = document.getElementById('filterDebugPanel');
         const debugLog = document.getElementById('debug-log');
-        const resetFilterBtn = document.getElementById('debug-reset-filter');
-        const clearSessionBtn = document.getElementById('debug-clear-session');
-        const refreshPageBtn = document.getElementById('debug-refresh-page');
-        
-        // Show debug panel only if debug mode is enabled
         const isDebug = localStorage.getItem('debug') === 'true';
+        
         if (debugPanel) {
             debugPanel.style.display = isDebug ? 'block' : 'none';
         }
         
-        // Override console.log to capture logs for debug panel
+        // Create debug logging system
         if (debugLog) {
             const originalLog = console.log;
             const originalWarn = console.warn;
             const originalError = console.error;
             
-            // Helper to add log to debug panel
             function addLogToPanel(level, ...args) {
                 const logItem = document.createElement('div');
                 const timestamp = new Date().toISOString().split('T')[1].split('.')[0];
@@ -442,12 +440,9 @@
                 logItem.innerHTML = `<span class="text-secondary">[${timestamp}]</span> <span class="${logClass}">[${level}]</span> ${message}`;
                 debugLog.appendChild(logItem);
                 debugLog.scrollTop = debugLog.scrollHeight;
-                
-                // Update debug info
-                updateDebugInfo();
+                updateDebugDisplay();
             }
             
-            // Override console methods
             console.log = function(...args) {
                 originalLog.apply(console, args);
                 if (isDebug) addLogToPanel('INFO', ...args);
@@ -464,145 +459,140 @@
             };
         }
         
-        // Direct implementations of filtering and sorting 
-        // - Not relying on main.js to solve the problem directly
-        console.log('Setting up direct filtering and sorting functionality');
-        
-        // Get filter and sort elements
+        // Get the key DOM elements
         const filterDropdown = document.getElementById('filterDropdown');
         const sortDropdown = document.getElementById('sortDropdown');
         const filterInfoText = document.getElementById('filterInfo');
         const resultsContainer = document.getElementById('results-container');
         
-        // Check if required elements exist
-        if (!filterDropdown) console.error('Filter dropdown not found');
-        if (!sortDropdown) console.error('Sort dropdown not found');
-        if (!filterInfoText) console.warn('Filter info text element not found');
-        if (!resultsContainer) console.error('Results container not found');
+        // Reference active elements directly by ID to avoid using querySelectorAll results
+        const filterItems = Array.from(document.querySelectorAll('#filterDropdown + .dropdown-menu .dropdown-item'));
+        const sortItems = Array.from(document.querySelectorAll('#sortDropdown + .dropdown-menu .dropdown-item'));
+        const resultItems = Array.from(document.querySelectorAll('.result-item'));
         
-        // Get filter and sort items
-        const filterItems = filterDropdown ? filterDropdown.querySelectorAll('.dropdown-item') : [];
-        const sortItems = sortDropdown ? sortDropdown.querySelectorAll('.dropdown-item') : [];
+        console.log(`Found ${filterItems.length} filter items, ${sortItems.length} sort items, and ${resultItems.length} result items`);
         
-        console.log(`Found ${filterItems.length} filter items and ${sortItems.length} sort items`);
-        
-        // Get result items directly - using the class that matches our elements
-        const resultItems = document.querySelectorAll('.result-item');
-        console.log(`Found ${resultItems.length} result items`);
-        
-        // Validate stored values - ensuring we don't have corrupted data
-        function validateStoredFilter(value) {
-            const validValues = ['all', 'detected', 'not-detected', 'unknown'];
-            return validValues.includes(value) ? value : 'all';
+        // Check for visible elements at startup
+        if (resultItems.length === 0) {
+            console.error('No result items found! Filtering will not work.');
         }
         
-        function validateStoredSort(value) {
-            const validValues = ['filename-asc', 'filename-desc', 'status-asc', 'status-desc'];
-            return validValues.includes(value) ? value : 'filename-asc';
-        }
+        // Log all result items at startup to verify data attributes
+        resultItems.forEach((item, index) => {
+            if (index < 3 || isDebug) { // Just log first 3 unless in debug mode
+                console.log(`Result item ${index}:`, {
+                    'data-detection-status': item.getAttribute('data-detection-status'),
+                    'data-filename': item.getAttribute('data-filename'),
+                    'data-subject': item.getAttribute('data-subject'),
+                    'classlist': Array.from(item.classList)
+                });
+            }
+        });
         
-        // Initialize from session storage if available
-        let currentFilter = validateStoredFilter(sessionStorage.getItem('currentFilter') || 'all');
-        let currentSort = validateStoredSort(sessionStorage.getItem('currentSort') || 'filename-asc');
-        
-        console.log('Initial filter:', currentFilter);
-        console.log('Initial sort:', currentSort);
+        // Try to retrieve saved filter/sort values
+        try {
+            const savedFilter = sessionStorage.getItem('currentFilter');
+            const savedSort = sessionStorage.getItem('currentSort');
             
+            if (savedFilter && ['all', 'detected', 'not-detected', 'unknown'].includes(savedFilter)) {
+                console.log('Restored filter from session:', savedFilter);
+                currentFilter = savedFilter;
+            } else {
+                console.log('No valid filter in session, using default "all"');
+                currentFilter = 'all';
+                // Store the default value
+                sessionStorage.setItem('currentFilter', currentFilter);
+            }
+            
+            if (savedSort && ['filename-asc', 'filename-desc', 'status-asc', 'status-desc'].includes(savedSort)) {
+                console.log('Restored sort from session:', savedSort);
+                currentSort = savedSort;
+            } else {
+                console.log('No valid sort in session, using default "filename-asc"');
+                currentSort = 'filename-asc';
+                // Store the default value
+                sessionStorage.setItem('currentSort', currentSort);
+            }
+        } catch (e) {
+            console.error('Error accessing sessionStorage:', e);
+            // Use defaults
+            currentFilter = 'all';
+            currentSort = 'filename-asc';
+        }
+        
         /**
          * Gets the current subject from the DOM
          */
         function getSubjectFromDom() {
-            // Try multiple sources to get the subject reliably
+            if (subject) return subject;
             
-            // First try: get from dropdown button with data-subject
-            if (filterDropdown) {
-                const fromDropdown = filterDropdown.getAttribute('data-subject');
-                if (fromDropdown) {
-                    console.log('Got subject from dropdown:', fromDropdown);
-                    return fromDropdown;
-                }
+            if (filterDropdown && filterDropdown.getAttribute('data-subject')) {
+                return filterDropdown.getAttribute('data-subject');
             }
             
-            // Second try: get from result items if available
-            if (resultItems.length > 0) {
-                const fromItem = resultItems[0].getAttribute('data-subject');
-                if (fromItem) {
-                    console.log('Got subject from first result item:', fromItem);
-                    return fromItem;
-                }
+            if (resultItems.length > 0 && resultItems[0].getAttribute('data-subject')) {
+                return resultItems[0].getAttribute('data-subject');
             }
             
-            // Third try: use the subject variable from the template
-            if (subject) {
-                console.log('Using subject from template variable:', subject);
-                return subject;
-            }
-            
-            // Fallback
-            console.log('Using fallback subject: "item"');
             return 'item';
         }
 
         /**
-         * Updates the debug info panel
+         * Update the debug panel with current state
          */
-        function updateDebugInfo() {
+        function updateDebugDisplay() {
             if (!isDebug) return;
             
-            if (document.getElementById('debug-subject')) {
-                document.getElementById('debug-subject').textContent = getSubjectFromDom();
-            }
+            const debugSubject = document.getElementById('debug-subject');
+            const debugFilter = document.getElementById('debug-current-filter');
+            const debugSort = document.getElementById('debug-current-sort');
             
-            if (document.getElementById('debug-current-filter')) {
-                document.getElementById('debug-current-filter').textContent = currentFilter;
-            }
-            
-            if (document.getElementById('debug-current-sort')) {
-                document.getElementById('debug-current-sort').textContent = currentSort;
-            }
+            if (debugSubject) debugSubject.textContent = getSubjectFromDom();
+            if (debugFilter) debugFilter.textContent = currentFilter;
+            if (debugSort) debugSort.textContent = currentSort;
         }
         
         /**
          * Updates the filter info text based on current selections
          */
         function updateFilterInfoText() {
-            if (!filterInfoText) {
-                console.warn('Filter info text element not found');
-                return;
-            }
+            if (!filterInfoText) return;
             
             let filterText = '';
             let sortText = '';
+            const currentSubject = getSubjectFromDom();
+            const pluralSuffix = currentSubject.endsWith('s') ? '' : 's';
             
-            // Get subject from the DOM
-            const subject = getSubjectFromDom();
-            
-            // Handle pluralization
-            const pluralSuffix = subject.endsWith('s') ? '' : 's';
-            
-            // Get filter text
-            if (currentFilter === 'all') {
-                filterText = 'all images';
-            } else if (currentFilter === 'detected') {
-                filterText = `images with ${subject}${pluralSuffix} detected`;
-            } else if (currentFilter === 'not-detected') {
-                filterText = `images with no ${subject}${pluralSuffix}`;
-            } else if (currentFilter === 'unknown') {
-                filterText = 'images with unknown status';
+            switch (currentFilter) {
+                case 'all':
+                    filterText = 'all images';
+                    break;
+                case 'detected':
+                    filterText = `images with ${currentSubject}${pluralSuffix} detected`;
+                    break;
+                case 'not-detected':
+                    filterText = `images with no ${currentSubject}${pluralSuffix}`;
+                    break;
+                case 'unknown':
+                    filterText = 'images with unknown status';
+                    break;
             }
             
-            // Get sort text
-            if (currentSort === 'filename-asc') {
-                sortText = 'filename (A-Z)';
-            } else if (currentSort === 'filename-desc') {
-                sortText = 'filename (Z-A)';
-            } else if (currentSort === 'status-asc') {
-                sortText = `${subject} status (No → Yes)`;
-            } else if (currentSort === 'status-desc') {
-                sortText = `${subject} status (Yes → No)`;
+            switch (currentSort) {
+                case 'filename-asc':
+                    sortText = 'filename (A-Z)';
+                    break;
+                case 'filename-desc':
+                    sortText = 'filename (Z-A)';
+                    break;
+                case 'status-asc':
+                    sortText = `${currentSubject} status (No → Yes)`;
+                    break;
+                case 'status-desc':
+                    sortText = `${currentSubject} status (Yes → No)`;
+                    break;
             }
             
-            // Update the info text
             const newText = `Showing ${filterText}, sorted by ${sortText}`;
             console.log('Updating filter info text:', newText);
             filterInfoText.textContent = newText;
@@ -612,25 +602,27 @@
          * Updates the active classes on filter and sort items
          */
         function updateActiveClasses() {
-            // Update filter active class
-            filterItems.forEach(item => {
-                if (item.dataset.filter === currentFilter) {
-                    item.classList.add('active-option');
-                    console.log(`Set active filter option: ${item.dataset.filter}`);
-                } else {
-                    item.classList.remove('active-option');
-                }
-            });
+            // Remove all active classes first
+            filterItems.forEach(item => item.classList.remove('active-option'));
+            sortItems.forEach(item => item.classList.remove('active-option'));
             
-            // Update sort active class
-            sortItems.forEach(item => {
-                if (item.dataset.sort === currentSort) {
-                    item.classList.add('active-option');
-                    console.log(`Set active sort option: ${item.dataset.sort}`);
-                } else {
-                    item.classList.remove('active-option');
-                }
-            });
+            // Find and add active class to the current filter
+            const activeFilterItem = filterItems.find(item => item.getAttribute('data-filter') === currentFilter);
+            if (activeFilterItem) {
+                activeFilterItem.classList.add('active-option');
+                console.log(`Set active filter option: ${currentFilter}`);
+            } else {
+                console.warn(`No filter item found for filter: ${currentFilter}`);
+            }
+            
+            // Find and add active class to the current sort
+            const activeSortItem = sortItems.find(item => item.getAttribute('data-sort') === currentSort);
+            if (activeSortItem) {
+                activeSortItem.classList.add('active-option');
+                console.log(`Set active sort option: ${currentSort}`);
+            } else {
+                console.warn(`No sort item found for sort: ${currentSort}`);
+            }
         }
         
         /**
@@ -639,64 +631,75 @@
         function applyFilterAndSort() {
             console.log('Applying filter:', currentFilter, 'and sort:', currentSort);
             
-            // Get the current subject
-            const subject = getSubjectFromDom();
-            console.log('Current subject:', subject);
-            
-            // First, filter the items
+            // Track visibility counts
             let visibleCount = 0;
             let hiddenCount = 0;
             
+            // Filter items
             resultItems.forEach(item => {
+                // Get data attribute directly from the element
                 const detectionStatus = item.getAttribute('data-detection-status');
                 const filename = item.getAttribute('data-filename');
                 
-                console.log(`Filtering item: ${filename}, status: ${detectionStatus}, filter: ${currentFilter}`);
+                console.log(`Processing item: ${filename}, status: ${detectionStatus}, filter: ${currentFilter}`);
                 
-                let visible = false;
+                // Determine visibility based on filter
+                let shouldBeVisible = false;
                 
-                // Main filtering logic
                 if (currentFilter === 'all') {
-                    visible = true;
+                    shouldBeVisible = true;
                 } else if (currentFilter === 'detected' && detectionStatus === 'true') {
-                    visible = true;
+                    shouldBeVisible = true;
                 } else if (currentFilter === 'not-detected' && detectionStatus === 'false') {
-                    visible = true;
+                    shouldBeVisible = true;
                 } else if (currentFilter === 'unknown' && detectionStatus === 'unknown') {
-                    visible = true;
+                    shouldBeVisible = true;
                 }
                 
-                // Apply visibility
-                if (visible) {
-                    console.log(`  - Showing item: ${filename} (matches filter: ${currentFilter})`);
+                // Apply visibility - direct DOM manipulation for reliability
+                if (shouldBeVisible) {
+                    // Use classList methods for consistency
                     item.classList.remove('hidden-item');
+                    // Double check it was removed successfully
+                    if (item.classList.contains('hidden-item')) {
+                        console.error(`Failed to remove hidden-item class from ${filename}`);
+                    }
                     visibleCount++;
                 } else {
-                    console.log(`  - Hiding item: ${filename} (doesn't match filter: ${currentFilter})`);
                     item.classList.add('hidden-item');
+                    // Double check it was added successfully
+                    if (!item.classList.contains('hidden-item')) {
+                        console.error(`Failed to add hidden-item class to ${filename}`);
+                    }
                     hiddenCount++;
                 }
             });
             
-            console.log(`Filtering complete: ${visibleCount} visible items, ${hiddenCount} hidden items`);
+            console.log(`Filtering complete: ${visibleCount} visible, ${hiddenCount} hidden`);
             
-            // Count visible items after filtering
-            const visibleItems = Array.from(resultItems).filter(item => !item.classList.contains('hidden-item'));
-            console.log(`Filtered to ${visibleItems.length} visible items`);
+            // Get visible items for sorting
+            const visibleItems = resultItems.filter(item => !item.classList.contains('hidden-item'));
             
-            // Then, sort the visible items
-            if (resultsContainer) {
-                console.log('Sorting visible items');
+            if (visibleItems.length !== visibleCount) {
+                console.warn(`Visible items count mismatch: expected ${visibleCount}, got ${visibleItems.length}`);
+            }
+            
+            // Sort visible items
+            if (resultsContainer && visibleItems.length > 0) {
+                console.log('Sorting visible items, count:', visibleItems.length);
+                
                 visibleItems.sort((a, b) => {
+                    const aFilename = a.getAttribute('data-filename') || '';
+                    const bFilename = b.getAttribute('data-filename') || '';
+                    const aStatus = a.getAttribute('data-detection-status') || '';
+                    const bStatus = b.getAttribute('data-detection-status') || '';
+                    
                     if (currentSort === 'filename-asc') {
-                        return a.getAttribute('data-filename').localeCompare(b.getAttribute('data-filename'));
+                        return aFilename.localeCompare(bFilename);
                     } else if (currentSort === 'filename-desc') {
-                        return b.getAttribute('data-filename').localeCompare(a.getAttribute('data-filename'));
+                        return bFilename.localeCompare(aFilename);
                     } else if (currentSort === 'status-asc') {
                         // Sort order: false, unknown, true
-                        const aStatus = a.getAttribute('data-detection-status');
-                        const bStatus = b.getAttribute('data-detection-status');
-                        
                         if (aStatus === bStatus) return 0;
                         if (aStatus === 'false') return -1;
                         if (bStatus === 'false') return 1;
@@ -705,9 +708,6 @@
                         return 0;
                     } else if (currentSort === 'status-desc') {
                         // Sort order: true, unknown, false
-                        const aStatus = a.getAttribute('data-detection-status');
-                        const bStatus = b.getAttribute('data-detection-status');
-                        
                         if (aStatus === bStatus) return 0;
                         if (aStatus === 'true') return -1;
                         if (bStatus === 'true') return 1;
@@ -718,40 +718,43 @@
                     return 0;
                 });
                 
-                // Reorder the DOM elements
-                console.log('Reordering DOM elements');
+                // Move sorted items to container
                 visibleItems.forEach(item => {
                     resultsContainer.appendChild(item);
                 });
+                
+                console.log('DOM sorting complete');
+            } else {
+                console.log('No items to sort or results container not found');
             }
             
-            // Update filter info text
+            // Update UI
             updateFilterInfoText();
-            
-            // Update debug info
-            updateDebugInfo();
+            updateDebugDisplay();
         }
         
-        // Apply initial filter and sort
+        // Initialize the UI
+        updateActiveClasses();
+        updateFilterInfoText();
+        
+        // Initially apply filtering and sorting
         applyFilterAndSort();
         
-        // Update active classes
-        updateActiveClasses();
-        
-        // Setup debug button actions
+        // Handle Debug Panel Actions
+        const resetFilterBtn = document.getElementById('debug-reset-filter');
         if (resetFilterBtn) {
             resetFilterBtn.addEventListener('click', function() {
                 console.log('Debug action: Resetting filters');
-                sessionStorage.setItem('currentFilter', 'all');
-                sessionStorage.setItem('currentSort', 'filename-asc');
                 currentFilter = 'all';
                 currentSort = 'filename-asc';
+                sessionStorage.setItem('currentFilter', 'all');
+                sessionStorage.setItem('currentSort', 'filename-asc');
                 updateActiveClasses();
                 applyFilterAndSort();
-                console.log('Filters reset to defaults');
             });
         }
         
+        const clearSessionBtn = document.getElementById('debug-clear-session');
         if (clearSessionBtn) {
             clearSessionBtn.addEventListener('click', function() {
                 console.log('Debug action: Clearing session storage');
@@ -760,10 +763,10 @@
                 currentSort = 'filename-asc';
                 updateActiveClasses();
                 applyFilterAndSort();
-                console.log('Session storage cleared');
             });
         }
         
+        const refreshPageBtn = document.getElementById('debug-refresh-page');
         if (refreshPageBtn) {
             refreshPageBtn.addEventListener('click', function() {
                 console.log('Debug action: Refreshing page');
@@ -771,48 +774,51 @@
             });
         }
         
-        // Add event listeners to filter and sort options
+        // Set up filter dropdown clicks
+        console.log('Setting up filter dropdown clicks...');
         filterItems.forEach(item => {
             item.addEventListener('click', function(e) {
                 e.preventDefault();
+                e.stopPropagation();
                 
-                console.log('Filter clicked:', this.dataset.filter);
+                const newFilter = this.getAttribute('data-filter');
+                console.log(`Filter clicked: ${newFilter}`);
                 
-                // Update current filter
-                currentFilter = this.dataset.filter;
-                
-                // Update active classes
-                updateActiveClasses();
-                
-                // Apply filter and sort
-                applyFilterAndSort();
-                
-                // Save to session storage
-                sessionStorage.setItem('currentFilter', currentFilter);
+                if (newFilter) {
+                    currentFilter = newFilter;
+                    sessionStorage.setItem('currentFilter', newFilter);
+                    
+                    updateActiveClasses();
+                    applyFilterAndSort();
+                } else {
+                    console.error('Filter item clicked but no data-filter attribute found');
+                }
             });
         });
         
+        // Set up sort dropdown clicks
+        console.log('Setting up sort dropdown clicks...');
         sortItems.forEach(item => {
             item.addEventListener('click', function(e) {
                 e.preventDefault();
+                e.stopPropagation();
                 
-                console.log('Sort clicked:', this.dataset.sort);
+                const newSort = this.getAttribute('data-sort');
+                console.log(`Sort clicked: ${newSort}`);
                 
-                // Update current sort
-                currentSort = this.dataset.sort;
-                
-                // Update active classes
-                updateActiveClasses();
-                
-                // Apply filter and sort
-                applyFilterAndSort();
-                
-                // Save to session storage
-                sessionStorage.setItem('currentSort', currentSort);
+                if (newSort) {
+                    currentSort = newSort;
+                    sessionStorage.setItem('currentSort', newSort);
+                    
+                    updateActiveClasses();
+                    applyFilterAndSort();
+                } else {
+                    console.error('Sort item clicked but no data-sort attribute found');
+                }
             });
         });
         
-        // Add toggle button for debug mode to Nav
+        // Add debug toggle to nav
         const navbarNav = document.querySelector('.navbar-nav');
         if (navbarNav) {
             const debugToggleLi = navbarNav.querySelector('.debug-toggle-li');
@@ -831,7 +837,6 @@
                     const newDebugState = localStorage.getItem('debug') !== 'true';
                     localStorage.setItem('debug', newDebugState);
                     
-                    // Update UI
                     this.innerHTML = `<i class="fas ${newDebugState ? 'fa-toggle-on' : 'fa-toggle-off'}"></i> Debug`;
                     if (debugPanel) {
                         debugPanel.style.display = newDebugState ? 'block' : 'none';
@@ -848,25 +853,24 @@
             }
         }
         
-        // Log initial state if debug mode is active
+        // If debug mode is active, log additional info
         if (isDebug) {
             console.log('Debug mode is active');
-            console.log('Subject:', subject);
+            console.log(`Current subject: ${getSubjectFromDom()}`);
+            console.log(`Current filter: ${currentFilter}`);
+            console.log(`Current sort: ${currentSort}`);
+            console.log(`DOM elements: ${resultItems.length} result items, ${filterItems.length} filter items, ${sortItems.length} sort items`);
             
-            // Check for potential issues
-            if (resultItems.length > 0) {
-                console.log(`Found ${resultItems.length} result items`);
-                
-                // Check a sample of items for data attributes
-                const sampleItem = resultItems[0];
-                console.log('Sample item attributes:', {
-                    'data-detection-status': sampleItem.getAttribute('data-detection-status'),
-                    'data-filename': sampleItem.getAttribute('data-filename'),
-                    'data-subject': sampleItem.getAttribute('data-subject')
-                });
-            } else {
-                console.warn('No result items found in the DOM');
-            }
+            // Check active items
+            const activeFilters = filterItems.filter(item => item.classList.contains('active-option'));
+            const activeSorts = sortItems.filter(item => item.classList.contains('active-option'));
+            
+            console.log(`Active filter items: ${activeFilters.length}`);
+            console.log(`Active sort items: ${activeSorts.length}`);
+            
+            // Check hidden items
+            const hiddenItems = resultItems.filter(item => item.classList.contains('hidden-item'));
+            console.log(`Initially hidden items: ${hiddenItems.length}`);
         }
         
         console.log('Initialization complete');
