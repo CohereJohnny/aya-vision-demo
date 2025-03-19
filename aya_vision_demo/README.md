@@ -1,28 +1,54 @@
-# AYA Vision Flare Detection Demo
+# AYA Vision Detection Demo
 
-A Flask-based web application that demonstrates the capabilities of Cohere's c4ai-aya-vision-32b model for image analysis, specifically in detecting burning flares in oil field imagery.
+A Flask-based web application that demonstrates the capabilities of Cohere's c4ai-aya-vision-32b model for image analysis, specifically designed for configurable object detection in images.
 
 ## Features
 
-- Upload multiple images (40-50 for production use)
-- Drag-and-drop interface for easy image uploading
-- Real-time image analysis using Cohere's c4ai-aya-vision-32b model
-- Clear visualization of results with thumbnails and status indicators
-- Summary statistics of detection results
-- Image deletion capability to remove individual images from the collection
-- RESTful API endpoint for programmatic access
-
-## Requirements
-
-- Python 3.8+
-- Flask 2.3.3
-- Cohere API key
+- **Configurable Detection Subject**: Set what you want to detect in images (e.g., flares, buildings, vehicles)
+- **Two-Stage Analysis Pipeline**:
+  - Stage 1: Initial binary classification ("Is a [subject] in this image?")
+  - Stage 2: Enhanced detailed analysis for positively identified images
+- **Image Upload**:
+  - Support for multiple image upload
+  - Drag-and-drop interface with live preview
+  - File type validation and size checking
+- **Real-time Progress Tracking**:
+  - Upload progress (percentage, speed, estimated time)
+  - Analysis progress (current image, completion count)
+  - Dynamic status messages and visual progress indicators
+- **Results Management**:
+  - Card-based grid layout for image results
+  - Visual indicators for detection status (green/red/gray)
+  - Image deletion with confirmation and animation
+  - Full-size image viewing in modal dialog
+- **Advanced Filtering and Sorting**:
+  - Filter by detection status (All, Detected, Not Detected, Unknown)
+  - Sort by filename (A-Z, Z-A) or detection status
+  - Session persistence for filter/sort preferences
+  - Real-time DOM updates without page reload
+- **Enhanced Analysis**:
+  - Detailed generative descriptions for detected objects
+  - Custom prompt support for targeted analysis
+  - Expandable/collapsible analysis text
+- **Settings Configuration**:
+  - Configure detection subject
+  - Customize prompts for both analysis stages
+  - Settings persistence between sessions
+- **Debug Mode**:
+  - Toggleable debug interface
+  - Real-time logging of filtering and sorting operations
+  - Current state display (subject, filter, sort)
+  - Debug actions (reset filters, clear storage, refresh)
+- **Responsive UI**:
+  - Mobile-friendly design
+  - Bootstrap 5 components and layout
+  - Smooth animations and transitions
 
 ## Installation
 
 1. Clone the repository:
    ```
-   git clone <repository-url>
+   git clone https://github.com/yourusername/aya-vision-demo.git
    cd aya-vision-demo
    ```
 
@@ -32,7 +58,7 @@ A Flask-based web application that demonstrates the capabilities of Cohere's c4a
    source venv/bin/activate  # On Windows: venv\Scripts\activate
    ```
 
-3. Install the dependencies:
+3. Install the required packages:
    ```
    pip install -r aya_vision_demo/requirements.txt
    ```
@@ -60,100 +86,123 @@ A Flask-based web application that demonstrates the capabilities of Cohere's c4a
    ```
    Note: The application runs on port 5001 by default to avoid conflicts with AirPlay on macOS.
 
-3. Upload images using the web interface and view the results.
+3. Configuration:
+   - Click on "Settings" in the navigation bar
+   - Set your detection subject (e.g., "Flare", "Building", "Vehicle")
+   - Customize the prompts for initial and enhanced analysis
+   - Save your settings
+
+4. Upload and analyze images:
+   - Use the upload form on the main page
+   - Drag and drop images or use the file selector
+   - Track the upload and analysis progress
+   - View results in the grid layout
+
+5. Filter and sort results:
+   - Use the filter dropdown to show specific detection categories
+   - Use the sort dropdown to change the display order
+   - Filter information will be displayed above the results
+
+6. Enhanced analysis:
+   - For images with detected objects, click the "Enhanced Analysis" button
+   - Enter a custom prompt or use the default
+   - View detailed descriptions for each detected object
+
+7. Debugging (optional):
+   - Toggle debug mode by clicking "Debug" in the navigation bar
+   - Use the debug panel to track filtering and sorting operations
+   - Reset filters or clear session storage as needed
+
+## Project Structure
+
+```
+aya-vision-demo/
+├── app/                      # Main application package
+│   ├── __init__.py           # Flask app initialization
+│   ├── routes.py             # View functions and API endpoints
+│   ├── utils.py              # Utility functions
+│   ├── forms.py              # WTForms definitions
+│   ├── static/               # Static assets
+│   │   ├── css/              # CSS styles
+│   │   ├── js/               # JavaScript files
+│   │   └── img/              # Images and icons
+│   └── templates/            # Jinja2 HTML templates
+│       ├── base.html         # Base template with layout
+│       ├── index.html        # Upload page
+│       ├── results.html      # Results display
+│       ├── settings.html     # Settings configuration
+│       ├── enhanced_analysis.html    # Enhanced analysis
+│       ├── analysis_progress.html    # Progress tracking
+│       └── errors/           # Error pages
+├── config.py                 # Configuration settings
+├── requirements.txt          # Dependencies
+├── requirements/             # Documentation
+│   └── prd.md                # Product Requirements Document
+├── .env                      # Environment variables (not in repo)
+└── run.py                    # Application entry point
+```
 
 ## API Usage
 
-The application provides RESTful API endpoints for programmatic access:
+The application provides RESTful API endpoints:
 
 ```
 POST /api/analyze
 ```
-
-Example using curl:
-```
-curl -X POST -F "images=@image1.jpg" -F "images=@image2.jpg" http://localhost:5001/api/analyze
-```
-
-Response format:
-```json
-{
-  "results": [
-    {
-      "filename": "image1.jpg",
-      "flare_detected": true,
-      "success": true,
-      "error": null
-    },
-    {
-      "filename": "image2.jpg",
-      "flare_detected": false,
-      "success": true,
-      "error": null
-    }
-  ]
-}
-```
+Uploads and analyzes images
 
 ```
-DELETE /api/delete_image/<image_index>?result_id=<result_id>
+GET /api/analysis-progress/<progress_id>
 ```
+Retrieves progress information for a batch
 
-Example using curl:
 ```
-curl -X DELETE "http://localhost:5001/api/delete_image/0?result_id=your-result-id"
+DELETE /api/delete_image/<image_index>
 ```
+Deletes an image from the results
 
-Response format:
-```json
-{
-  "success": true,
-  "message": "Image image1.jpg deleted successfully",
-  "remaining_count": 1,
-  "results": [
-    {
-      "filename": "image2.jpg",
-      "flare_detected": false,
-      "success": true,
-      "error": null
-    }
-  ]
-}
 ```
-
-## Configuration
-
-The application has three configuration environments:
-
-- Development: For local development (default)
-- Testing: For running tests
-- Production: For deployment
-
-You can change the environment by setting the `FLASK_CONFIG` environment variable.
-
-## Implementation Notes
-
-- The application uses an in-memory storage for results instead of Flask's session to avoid size limitations when handling multiple images.
-- For a production deployment, this should be replaced with a proper database.
-- The default minimum number of images is set to 1 for development, but can be configured to 40-50 for production as per the PRD.
-
-## Testing
-
-Run the tests using pytest:
+POST /api/enhanced-analysis
 ```
-cd aya_vision_demo
-pytest
-```
+Triggers enhanced analysis for detected objects
 
-## Deployment
+## Technologies Used
 
-For production deployment, set the following environment variables:
-```
-FLASK_CONFIG=production
-SECRET_KEY=your-secure-secret-key
-COHERE_API_KEY=your-cohere-api-key
-```
+- **Frontend**:
+  - HTML5, CSS3, JavaScript (ES6+)
+  - Bootstrap 5 for responsive design
+  - Font Awesome for icons
+  - Fetch API for AJAX requests
+  - XMLHttpRequest for upload progress tracking
+  - Session storage for state persistence
+
+- **Backend**:
+  - Python 3.8+
+  - Flask web framework
+  - Flask-WTF for form handling
+  - Cohere Python SDK
+  - Base64 for image encoding
+  - Unique IDs for progress tracking
+
+## Development and Debugging
+
+- Enable debug mode by clicking the "Debug" toggle in the navigation bar
+- Use the debug panel on the results page to:
+  - View current settings (subject, filter, sort)
+  - Reset filters to default values
+  - Clear session storage
+  - View detailed logs of filtering and sorting operations
+- Debug logs show:
+  - DOM element details
+  - Filter/sort operations
+  - Visibility status of each item
 
 ## License
 
-This project is for demonstration purposes only and is not licensed for public use.
+This project is licensed under the MIT License.
+
+## Acknowledgements
+
+- Cohere for providing the c4ai-aya-vision-32b model
+- The Flask community for the excellent web framework
+- Bootstrap team for the responsive UI components
