@@ -113,6 +113,131 @@ A Flask-based web application that demonstrates the capabilities of Cohere's c4a
    - Use the debug panel to track filtering and sorting operations
    - Reset filters or clear session storage as needed
 
+## Docker Deployment
+
+You can run the AYA Vision Detection Demo as a containerized application using Docker for easier deployment and consistency across environments.
+
+### Prerequisites
+
+- [Docker](https://docs.docker.com/get-docker/) installed on your system
+- A valid Cohere API key
+
+### Building and Running the Container
+
+1. **Build the Docker image**:
+   ```bash
+   # From the project root directory (where the Dockerfile is located)
+   docker build -t aya-vision-demo .
+   ```
+   This command builds a Docker image named "aya-vision-demo" based on the Dockerfile.
+
+2. **Run the container**:
+   ```bash
+   docker run -d -p 5001:5001 \
+     -e COHERE_API_KEY=your-cohere-api-key \
+     -e SECRET_KEY=your-secure-secret-key \
+     -e FLASK_CONFIG=production \
+     --name aya-vision-app \
+     aya-vision-demo
+   ```
+   Replace `your-cohere-api-key` and `your-secure-secret-key` with your actual values.
+
+   Parameters explained:
+   - `-d`: Run in detached mode (background)
+   - `-p 5001:5001`: Map port 5001 from the container to port 5001 on the host
+   - `-e`: Set environment variables
+   - `--name`: Assign a name to the container
+
+3. **Access the application**:
+   Open your browser and navigate to:
+   ```
+   http://localhost:5001
+   ```
+
+### Docker Management Commands
+
+- **View logs**:
+  ```bash
+  docker logs aya-vision-app
+  ```
+  Add `-f` flag to follow the logs in real-time:
+  ```bash
+  docker logs -f aya-vision-app
+  ```
+
+- **Stop the container**:
+  ```bash
+  docker stop aya-vision-app
+  ```
+
+- **Restart the container**:
+  ```bash
+  docker restart aya-vision-app
+  ```
+
+- **Remove the container** (must be stopped first):
+  ```bash
+  docker rm aya-vision-app
+  ```
+
+### Custom Configuration
+
+- **Change the port mapping**:
+  ```bash
+  docker run -d -p 8080:5001 -e COHERE_API_KEY=your-key -e SECRET_KEY=your-secret --name aya-vision-app aya-vision-demo
+  ```
+  This maps the container's port 5001 to the host's port 8080.
+
+- **Use a volume for persistent data** (if you've added persistence to the app):
+  ```bash
+  docker run -d -p 5001:5001 \
+    -v $(pwd)/data:/app/data \
+    -e COHERE_API_KEY=your-key \
+    -e SECRET_KEY=your-secret \
+    --name aya-vision-app \
+    aya-vision-demo
+  ```
+
+- **Run in development mode**:
+  ```bash
+  docker run -d -p 5001:5001 \
+    -e COHERE_API_KEY=your-key \
+    -e SECRET_KEY=your-secret \
+    -e FLASK_CONFIG=development \
+    --name aya-vision-app \
+    aya-vision-demo
+  ```
+
+### Docker Compose (Optional)
+
+For easier management, you can create a `docker-compose.yml` file in the project root:
+
+```yaml
+version: '3'
+
+services:
+  aya-vision-app:
+    build: .
+    container_name: aya-vision-app
+    ports:
+      - "5001:5001"
+    environment:
+      - COHERE_API_KEY=your-cohere-api-key
+      - SECRET_KEY=your-secure-secret-key
+      - FLASK_CONFIG=production
+    restart: unless-stopped
+```
+
+Then run:
+```bash
+docker-compose up -d
+```
+
+And to stop:
+```bash
+docker-compose down
+```
+
 ## Project Structure
 
 ```
@@ -139,6 +264,7 @@ aya-vision-demo/
 ├── requirements/             # Documentation
 │   └── prd.md                # Product Requirements Document
 ├── .env                      # Environment variables (not in repo)
+├── Dockerfile                # Container definition for Docker
 └── run.py                    # Application entry point
 ```
 
