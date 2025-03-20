@@ -110,12 +110,6 @@
         color: #495057;
         font-weight: bold;
     }
-    .analysis-status {
-        margin-top: 15px;
-        display: none;
-        font-size: 1rem;
-        border-left: 4px solid #0d6efd;
-    }
     .progress-container.active {
         border-left: 4px solid #0d6efd;
         animation: pulse 2s infinite;
@@ -176,26 +170,17 @@
                     </p>
                 </div>
                 
-                <div class="prompt-container">
-                    <div class="prompt-header">
-                        <div class="prompt-title">
-                            <i class="fas fa-comment-alt me-2"></i>Default Enhanced Analysis Prompt
-                        </div>
-                    </div>
-                    <div class="prompt-text">{{ default_prompt }}</div>
-                </div>
-                
                 <div class="form-container">
                     <form method="post" id="enhancedAnalysisForm" action="{{ url_for('main.enhanced_analysis') }}">
                         {{ form.hidden_tag() }}
                         
                         <div class="mb-3">
                             <label for="{{ form.custom_prompt.id }}" class="form-label">
-                                <i class="fas fa-edit me-1"></i>Custom Enhanced Analysis Prompt (Optional)
+                                <i class="fas fa-edit me-1"></i>Enhanced Analysis Prompt
                             </label>
-                            {{ form.custom_prompt(class="form-control", rows=5, placeholder="Enter your custom prompt for enhanced analysis...") }}
+                            {{ form.custom_prompt(class="form-control", rows=5) }}
                             <div class="form-text">
-                                Leave blank to use the default prompt. Your prompt should ask for detailed information about the {{ subject }}<span id="prompt-plural"></span> in the image.
+                                This prompt will be used to generate detailed descriptions of the {{ subject }}<span id="prompt-plural"></span> in the selected images. You can modify it to focus on specific aspects of interest.
                             </div>
                             {% if form.custom_prompt.errors %}
                                 <div class="invalid-feedback d-block">
@@ -231,20 +216,11 @@
                                 </div>
                             </div>
                             
-                            <!-- Bare minimum progress bar implementation -->
-                            <div style="width: 100%; background-color: #f0f0f0; border: 1px solid #ddd; height: 40px; position: relative; border-radius: 4px; overflow: hidden;">
-                                <!-- Main progress fill - using a separate non-transitioning element -->
-                                <div id="progress-fill" style="position: absolute; top: 0; left: 0; height: 100%; width: 2%; background-color: #0d6efd;"></div>
-                                <!-- Text overlay -->
-                                <div style="position: absolute; width: 100%; text-align: center; line-height: 40px; color: #000; font-weight: bold;">
-                                    <span id="progress-text">2%</span>
-                                </div>
-                                <!-- Debug element to display raw values -->
-                                <div id="debug-progress" style="position: absolute; right: 5px; top: 2px; font-size: 10px; color: #666;"></div>
-                            </div>
-                            
-                            <div style="margin-top: 15px; text-align: center;">
-                                <span id="analysis-status">Preparing analysis...</span>
+                            <!-- Progress Bar using Bootstrap classes (matches initial analysis) -->
+                            <div class="progress mb-3" style="height: 30px;">
+                                <div id="progress-fill" class="progress-bar progress-bar-striped progress-bar-animated" 
+                                     role="progressbar" style="width: 2%;" 
+                                     aria-valuenow="2" aria-valuemin="0" aria-valuemax="100">2%</div>
                             </div>
                             
                             <div class="alert alert-info mt-3" id="analysis-status-alert" style="margin-top: 15px;">
@@ -360,11 +336,7 @@
             }
             
             // Set initial status in debug log
-            const debugInfo = document.getElementById('debug-progress');
-            if (debugInfo) {
-                debugInfo.textContent = 'Ready to start new enhanced analysis';
-                console.log('Set initial debug status message');
-            }
+            console.log('Ready to start new enhanced analysis');
         }
         
         // Function to check if a word is already plural
@@ -471,18 +443,16 @@
         // Simple function to update progress display
         function updateProgressUI(percent, statusText) {
             // Get DOM elements once
-            const progressFill = document.getElementById('progress-fill');
-            const progressText = document.getElementById('progress-text');
+            const progressBar = document.getElementById('progress-fill');
             const statusMessage = document.getElementById('status-message');
             
             // Ensure percent is valid and between 2-100
             percent = Math.max(2, Math.min(100, Math.round(percent)));
             
-            // Update progress bar width directly - no transitions
-            progressFill.style.width = percent + '%';
-            
-            // Update text content
-            progressText.textContent = percent + '%';
+            // Update progress bar width and text using Bootstrap attributes
+            progressBar.style.width = percent + '%';
+            progressBar.setAttribute('aria-valuenow', percent);
+            progressBar.textContent = percent + '%';
             
             // Update status message if provided
             if (statusText) {
@@ -616,11 +586,8 @@
                         debugControls.style.display = 'block';
                     }
                     
-                    // Update debug status with more informative message
-                    const debugInfo = document.getElementById('debug-progress');
-                    if (debugInfo) {
-                        debugInfo.textContent = `Analysis starting with progress ID: ${progressId}`;
-                    }
+                    // Log analysis starting information
+                    console.log(`Analysis starting with progress ID: ${progressId}`);
                 }
                 
                 // Update progress UI
@@ -684,11 +651,8 @@
                 
                 console.log(`[${new Date().toLocaleTimeString()}] Poll #${pollCount} - URL: ${url}`);
                 
-                // Debug element update
-                const debugEl = document.getElementById('debug-progress');
-                if (debugEl) {
-                    debugEl.textContent = `Sending poll #${pollCount}...`;
-                }
+                // Log polling activity
+                console.log(`Sending poll #${pollCount}...`);
                 
                 // Use fetch with a timeout
                 const controller = new AbortController();
@@ -747,11 +711,8 @@
                     const requestTime = Math.round(requestEndTime - requestStartTime);
                     console.log(`Poll #${pollCount} - Request completed in ${requestTime}ms`);
                     
-                    // Show request time in debug info
-                    const debugEl = document.getElementById('debug-progress');
-                    if (debugEl) {
-                        debugEl.textContent = `Poll #${pollCount}: ${data.percent}% [${requestTime}ms]`;
-                    }
+                    // Log poll results
+                    console.log(`Poll #${pollCount}: ${data.percent}% [${requestTime}ms]`);
                     
                     // Reset failed attempts counter on success
                     failedAttempts = 0;
@@ -781,15 +742,12 @@
                             const fileInfo = data.current_file ? `<div>Processing: ${data.current_file}</div>` : '';
                             
                             updateProgressUI(percent, statusHTML + fileInfo);
-                            document.getElementById('analysis-status').textContent = `Processing image ${completed} of ${total}`;
                             
-                            // Log received values for debugging
-                            document.getElementById('debug-progress').textContent = 
-                                `Poll #${pollCount}: ${percent}% (${completed}/${total})`;
+                            // Log progress information
+                            console.log(`Poll #${pollCount}: ${percent}% (${completed}/${total})`);
                         } else if (data.status === 'complete' || percent >= 100) {
                             // Final update for completed state
                             updateProgressUI(100, '<strong>Analysis complete! Redirecting...</strong>');
-                            document.getElementById('analysis-status').textContent = 'Complete';
                             
                             console.log(`Poll #${pollCount} - Analysis complete, will redirect soon`);
                             
@@ -830,7 +788,7 @@
                     
                     // Show error in UI if not an abort error
                     if (error.name !== 'AbortError') {
-                        document.getElementById('debug-progress').textContent = `Error: ${error.message}`;
+                        console.error(`Error: ${error.message}`);
                     }
                     
                     // If we've failed too many times, show an error but KEEP TRYING

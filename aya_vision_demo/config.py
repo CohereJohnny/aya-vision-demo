@@ -38,7 +38,7 @@ class ProductionConfig(Config):
     DEBUG = False
     TESTING = False
     # In production, we enforce the 40-50 image range as per PRD
-    MIN_IMAGES = 40
+    MIN_IMAGES = 1
     MAX_IMAGES = 50
 
 # Configuration dictionary

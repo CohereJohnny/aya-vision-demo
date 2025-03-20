@@ -383,12 +383,26 @@
         
         // Get the delete buttons
         const deleteButtons = document.querySelectorAll('.delete-image-btn');
-        const deleteModal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
+        const deleteModalEl = document.getElementById('deleteConfirmModal');
+        // Configure delete modal options for proper cleanup
+        const deleteModalOptions = {
+            backdrop: true,
+            keyboard: true,
+            focus: true
+        };
+        const deleteModal = new bootstrap.Modal(deleteModalEl, deleteModalOptions);
         const filenameToDelete = document.getElementById('filename-to-delete');
         const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
         
         // Full image modal elements
-        const imageModal = new bootstrap.Modal(document.getElementById('imageModal'));
+        const imageModalEl = document.getElementById('imageModal');
+        // Configure modal options for proper cleanup
+        const imageModalOptions = {
+            backdrop: true,
+            keyboard: true,
+            focus: true
+        };
+        const imageModal = new bootstrap.Modal(imageModalEl, imageModalOptions);
         const fullImage = document.getElementById('fullImage');
         const imageFilename = document.getElementById('imageFilename');
         const modalEnhancedAnalysis = document.getElementById('modalEnhancedAnalysis');
@@ -517,9 +531,49 @@
             confirmDeleteBtn.setAttribute('data-index', index);
             confirmDeleteBtn.setAttribute('data-filename', filename);
             
-            // Hide image modal and show confirmation modal
+            // Store a flag to show delete modal after image modal is fully hidden
+            window.showDeleteModalAfterImageModalClosed = true;
+            
+            // Hide image modal
             imageModal.hide();
-            deleteModal.show();
+        });
+        
+        // Add event listener for when the image modal is hidden
+        imageModalEl.addEventListener('hidden.bs.modal', function () {
+            // Ensure body class is removed
+            document.body.classList.remove('modal-open');
+            
+            // Remove any leftover backdrop
+            const backdrops = document.querySelectorAll('.modal-backdrop');
+            backdrops.forEach(backdrop => backdrop.remove());
+            
+            // Reset body styles that might be added by Bootstrap
+            document.body.style.overflow = '';
+            document.body.style.paddingRight = '';
+            
+            // Check if we need to show the delete modal
+            if (window.showDeleteModalAfterImageModalClosed) {
+                window.showDeleteModalAfterImageModalClosed = false;
+                
+                // Use setTimeout to ensure the DOM has time to clean up first
+                setTimeout(() => {
+                    deleteModal.show();
+                }, 50);
+            }
+        });
+        
+        // Add event listener for when the delete confirmation modal is hidden
+        deleteModalEl.addEventListener('hidden.bs.modal', function () {
+            // Ensure body class is removed
+            document.body.classList.remove('modal-open');
+            
+            // Remove any leftover backdrop
+            const backdrops = document.querySelectorAll('.modal-backdrop');
+            backdrops.forEach(backdrop => backdrop.remove());
+            
+            // Reset body styles that might be added by Bootstrap
+            document.body.style.overflow = '';
+            document.body.style.paddingRight = '';
         });
         
         // Handle confirm delete button click
@@ -557,8 +611,17 @@
                         }, 500);
                     }
                     
-                    // Hide the confirmation modal
+                    // Hide the confirmation modal properly
                     deleteModal.hide();
+                    
+                    // Ensure there are no remaining backdrops after modal is closed
+                    setTimeout(() => {
+                        document.body.classList.remove('modal-open');
+                        const backdrops = document.querySelectorAll('.modal-backdrop');
+                        backdrops.forEach(backdrop => backdrop.remove());
+                        document.body.style.overflow = '';
+                        document.body.style.paddingRight = '';
+                    }, 150);
                 } else {
                     alert('Error deleting image: ' + data.error);
                 }
@@ -586,6 +649,21 @@
             // Apply sort
             applySort();
         }
+        
+        // Add a global click handler as a fallback to ensure page interactivity
+        // if modals aren't properly cleaned up
+        document.addEventListener('click', function(e) {
+            // If we click anywhere and there's no visible modal but body still has modal-open class
+            const anyVisibleModal = document.querySelector('.modal.show');
+            if (!anyVisibleModal && document.body.classList.contains('modal-open')) {
+                console.log('Forcing modal cleanup');
+                document.body.classList.remove('modal-open');
+                const backdrops = document.querySelectorAll('.modal-backdrop');
+                backdrops.forEach(backdrop => backdrop.remove());
+                document.body.style.overflow = '';
+                document.body.style.paddingRight = '';
+            }
+        });
     });
 </script>
 {% endblock %} 

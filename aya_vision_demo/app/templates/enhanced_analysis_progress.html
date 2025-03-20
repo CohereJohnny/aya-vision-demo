@@ -46,13 +46,6 @@
         color: #495057;
         font-weight: bold;
     }
-    .analysis-status {
-        margin-top: 15px;
-        display: block;
-        font-size: 1rem;
-        border-left: 4px solid #0d6efd;
-        padding-left: 10px;
-    }
     .progress-container.active {
         border-left: 4px solid #0d6efd;
         animation: pulse 2s infinite;
@@ -113,20 +106,11 @@
                 <div class="progress-container active" id="progress-container">
                     <h4>Analysis Progress</h4>
                     
-                    <!-- Bare minimum progress bar implementation -->
-                    <div style="width: 100%; background-color: #f0f0f0; border: 1px solid #ddd; height: 40px; position: relative; border-radius: 4px; overflow: hidden;">
-                        <!-- Main progress fill - using a separate non-transitioning element -->
-                        <div id="progress-fill" style="position: absolute; top: 0; left: 0; height: 100%; width: 2%; background-color: #0d6efd;"></div>
-                        <!-- Text overlay -->
-                        <div style="position: absolute; width: 100%; text-align: center; line-height: 40px; color: #000; font-weight: bold;">
-                            <span id="progress-text">0%</span>
-                        </div>
-                        <!-- Debug element to display raw values -->
-                        <div id="debug-progress" style="position: absolute; right: 5px; top: 2px; font-size: 10px; color: #666;"></div>
-                    </div>
-                    
-                    <div style="margin-top: 15px; text-align: center;">
-                        <span id="analysis-status">Preparing analysis...</span>
+                    <!-- Progress Bar using Bootstrap classes (matches initial analysis) -->
+                    <div class="progress mb-3" style="height: 30px;">
+                        <div id="progress-fill" class="progress-bar progress-bar-striped progress-bar-animated" 
+                             role="progressbar" style="width: 2%;" 
+                             aria-valuenow="2" aria-valuemin="0" aria-valuemax="100">2%</div>
                     </div>
                     
                     <div class="alert alert-info mt-3 status-alert" id="analysis-status-alert" style="margin-top: 15px;">
@@ -183,18 +167,16 @@
         // Simple function to update progress display
         function updateProgressUI(percent, statusText) {
             // Get DOM elements
-            const progressFill = document.getElementById('progress-fill');
-            const progressText = document.getElementById('progress-text');
+            const progressBar = document.getElementById('progress-fill');
             const statusMessage = document.getElementById('status-message');
             
             // Ensure percent is valid and between 2-100
             percent = Math.max(2, Math.min(100, Math.round(percent)));
             
-            // Update progress bar width directly - no transitions
-            progressFill.style.width = percent + '%';
-            
-            // Update text content
-            progressText.textContent = percent + '%';
+            // Update progress bar width and text using Bootstrap attributes
+            progressBar.style.width = percent + '%';
+            progressBar.setAttribute('aria-valuenow', percent);
+            progressBar.textContent = percent + '%';
             
             // Update status message if provided
             if (statusText) {
@@ -227,8 +209,8 @@
             const random = Math.floor(Math.random() * 1000000);
             const url = `/api/enhanced-analysis-progress/${progressId}?_=${timestamp}&r=${random}&pc=${pollCount}`;
             
-            // Debug element update
-            document.getElementById('debug-progress').textContent = `Poll #${pollCount}...`;
+            // Log poll activity
+            logDebug(`Poll #${pollCount} started to URL: ${url}`);
             
             fetch(url, {
                 method: 'GET',
@@ -259,7 +241,6 @@
                         
                         // Update UI with only the count information, no filename
                         updateProgressUI(percent, statusHTML);
-                        document.getElementById('analysis-status').textContent = `Processing image ${completed} of ${total}`;
                     } else if (data.status === 'initialized') {
                         updateProgressUI(2, '<strong>Analysis initialized, waiting for processing to start...</strong>');
                     } else if (data.status === 'error') {
@@ -280,7 +261,6 @@
                     } else if (data.status === 'complete' || percent >= 100) {
                         // Final update for completed state
                         updateProgressUI(100, '<strong>Analysis complete!</strong>');
-                        document.getElementById('analysis-status').textContent = 'Complete';
                         
                         // Show the view results button
                         document.getElementById('view-results-btn').style.display = 'block';

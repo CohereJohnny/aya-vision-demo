@@ -395,8 +395,7 @@ def enhanced_analysis():
                     subject=subject, 
                     results=positive_results,
                     total_count=len(results),
-                    detected_count=len(positive_results),
-                    default_prompt=default_prompt
+                    detected_count=len(positive_results)
                 )
             
             # ===== IMMEDIATE RESPONSE APPROACH =====
@@ -475,8 +474,7 @@ def enhanced_analysis():
                 subject=subject, 
                 results=positive_results,
                 total_count=len(results),
-                detected_count=len(positive_results),
-                default_prompt=default_prompt
+                detected_count=len(positive_results)
             )
     
     # Calculate counts for the template
@@ -489,8 +487,7 @@ def enhanced_analysis():
         subject=subject, 
         results=positive_results,
         total_count=total_count,
-        detected_count=detected_count,
-        default_prompt=default_prompt
+        detected_count=detected_count
     )
 
 # Add a function to handle initial analysis background processing

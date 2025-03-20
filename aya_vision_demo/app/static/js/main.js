@@ -125,122 +125,136 @@ function setupImageDeletion() {
  * Sets up image modal functionality
  */
 function setupImageModal() {
-    // Get all result cards
-    const resultCards = document.querySelectorAll('.result-card');
+    // Get all thumbnail images
+    const thumbnails = document.querySelectorAll('.thumbnail');
+    const imageModal = document.getElementById('imageModal');
     
-    resultCards.forEach(card => {
-        card.addEventListener('click', function() {
-            const imageId = this.dataset.id;
-            const imageSrc = this.dataset.src;
-            const filename = this.dataset.filename;
-            const detectionResult = this.dataset.result;
-            const subject = this.dataset.subject;
+    // Check if modal and thumbnails exist
+    if (!imageModal || thumbnails.length === 0) {
+        console.log('Image modal or thumbnails not found, skipping setup');
+        return;
+    }
+    
+    console.log(`Found ${thumbnails.length} thumbnails to setup for modal display`);
+    
+    // Create Bootstrap modal instance
+    const modal = new bootstrap.Modal(imageModal);
+    
+    // Reference modal elements once
+    const fullImage = document.getElementById('fullImage');
+    const imageFilename = document.getElementById('imageFilename');
+    const imageFlareStatus = document.getElementById('imageFlareStatus');
+    const modalDeleteBtn = document.getElementById('modal-delete-btn');
+    
+    // Setup click handlers for all thumbnails
+    thumbnails.forEach(thumbnail => {
+        thumbnail.addEventListener('click', function(e) {
+            // Prevent default behavior and propagation
+            e.preventDefault();
+            e.stopPropagation();
             
-            // Get the modal
-            const modal = document.getElementById('imageModal');
-            const modalImage = modal.querySelector('.modal-image');
-            const modalFilename = modal.querySelector('.modal-filename');
-            const modalStatus = modal.querySelector('.modal-status');
-            const modalDeleteBtn = modal.querySelector('.modal-delete-btn');
+            // Get data attributes
+            const fullImageData = this.getAttribute('data-image');
+            const filename = this.getAttribute('data-filename');
+            const detectionStatus = this.getAttribute('data-detection-status');
+            const index = this.getAttribute('data-index');
+            const subject = document.getElementById('filterDropdown')?.getAttribute('data-subject') || 'Object';
+            
+            console.log(`Thumbnail clicked for ${filename}, status: ${detectionStatus}, index: ${index}`);
             
             // Set modal content
-            modalImage.src = imageSrc;
-            modalFilename.textContent = filename;
+            if (fullImage) fullImage.src = fullImageData;
+            if (imageFilename) imageFilename.textContent = filename;
             
-            // Set detection status with appropriate icon
-            let statusHtml = '';
-            if (detectionResult === 'true') {
-                statusHtml = `<i class="fas fa-check-circle text-success"></i>${subject} Detected: Yes`;
-            } else if (detectionResult === 'false') {
-                statusHtml = `<i class="fas fa-times-circle text-danger"></i>${subject} Detected: No`;
-            } else {
-                statusHtml = `<i class="fas fa-question-circle text-secondary"></i>${subject} Detected: Unknown`;
+            // Set status with appropriate styling
+            if (imageFlareStatus) {
+                let statusHtml = '';
+                if (detectionStatus === 'true') {
+                    statusHtml = `<span class="result-true"><i class="fas fa-check-circle"></i> ${subject} Detected: Yes</span>`;
+                } else if (detectionStatus === 'false') {
+                    statusHtml = `<span class="result-false"><i class="fas fa-times-circle"></i> ${subject} Detected: No</span>`;
+                } else {
+                    statusHtml = `<span class="result-unknown"><i class="fas fa-question-circle"></i> ${subject} Detected: Unknown</span>`;
+                }
+                imageFlareStatus.innerHTML = statusHtml;
             }
-            modalStatus.innerHTML = statusHtml;
             
             // Set delete button data
-            modalDeleteBtn.dataset.id = imageId;
-            
-            // Show the modal
-            const bsModal = new bootstrap.Modal(modal);
-            bsModal.show();
-        });
-    });
-    
-    // Handle modal delete button
-    const modalDeleteBtn = document.querySelector('.modal-delete-btn');
-    if (modalDeleteBtn) {
-        modalDeleteBtn.addEventListener('click', function() {
-            const imageId = this.dataset.id;
-            const card = document.querySelector(`.result-card[data-id="${imageId}"]`);
-            
-            // Confirm deletion
-            if (confirm('Are you sure you want to delete this image?')) {
-                // Hide the modal
-                const modal = document.getElementById('imageModal');
-                const bsModal = bootstrap.Modal.getInstance(modal);
-                bsModal.hide();
+            if (modalDeleteBtn) {
+                modalDeleteBtn.setAttribute('data-index', index);
+                modalDeleteBtn.setAttribute('data-filename', filename);
                 
-                // Add removing animation class
-                card.classList.add('removing');
-                
-                // Send delete request
-                fetch(`/api/delete_image/${imageId}`, {
-                    method: 'DELETE',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    }
-                })
-                .then(response => {
-                    if (response.ok) {
-                        return response.json();
-                    }
-                    throw new Error('Network response was not ok');
-                })
-                .then(data => {
-                    // Remove card after animation completes
-                    setTimeout(() => {
-                        card.remove();
+                // Add click event to the delete button
+                modalDeleteBtn.onclick = function() {
+                    const filenameToDelete = this.getAttribute('data-filename');
+                    const indexToDelete = this.getAttribute('data-index');
+                    
+                    // Close the current modal
+                    modal.hide();
+                    
+                    // Show confirmation modal
+                    const deleteConfirmModal = document.getElementById('deleteConfirmModal');
+                    if (deleteConfirmModal) {
+                        const filenamePlaceholder = document.getElementById('filename-to-delete');
+                        if (filenamePlaceholder) filenamePlaceholder.textContent = filenameToDelete;
                         
-                        // Show success toast
-                        const toastContainer = document.querySelector('.toast-container');
-                        if (toastContainer) {
-                            const toast = document.createElement('div');
-                            toast.className = 'toast';
-                            toast.setAttribute('role', 'alert');
-                            toast.setAttribute('aria-live', 'assertive');
-                            toast.setAttribute('aria-atomic', 'true');
-                            toast.innerHTML = `
-                                <div class="toast-header">
-                                    <strong class="me-auto">Success</strong>
-                                    <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
-                                </div>
-                                <div class="toast-body">
-                                    Image deleted successfully.
-                                </div>
-                            `;
-                            toastContainer.appendChild(toast);
-                            const bsToast = new bootstrap.Toast(toast);
-                            bsToast.show();
+                        const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
+                        if (confirmDeleteBtn) {
+                            // Clear previous event listeners
+                            const newBtn = confirmDeleteBtn.cloneNode(true);
+                            confirmDeleteBtn.parentNode.replaceChild(newBtn, confirmDeleteBtn);
                             
-                            // Remove toast after it's hidden
-                            toast.addEventListener('hidden.bs.toast', function() {
-                                toast.remove();
+                            // Add new event listener
+                            newBtn.addEventListener('click', function() {
+                                // Send delete request
+                                fetch(`/api/delete_image/${indexToDelete}`, {
+                                    method: 'DELETE'
+                                })
+                                .then(response => response.json())
+                                .then(data => {
+                                    if (data.success) {
+                                        // Close the confirmation modal
+                                        const bsConfirmModal = bootstrap.Modal.getInstance(deleteConfirmModal);
+                                        bsConfirmModal.hide();
+                                        
+                                        // Remove the item from the page with animation
+                                        const itemToRemove = document.querySelector(`.result-item[data-index="${indexToDelete}"]`);
+                                        if (itemToRemove) {
+                                            itemToRemove.classList.add('image-removed');
+                                            setTimeout(() => {
+                                                itemToRemove.remove();
+                                                
+                                                // Update counts if the function exists
+                                                if (typeof updateCounts === 'function') {
+                                                    updateCounts(data);
+                                                }
+                                                
+                                                // Show toast notification
+                                                showToast('Image deleted successfully');
+                                            }, 500);
+                                        }
+                                    } else {
+                                        alert('Error deleting image: ' + (data.error || 'Unknown error'));
+                                    }
+                                })
+                                .catch(error => {
+                                    console.error('Error:', error);
+                                    alert('Failed to delete image. Please try again.');
+                                });
                             });
                         }
                         
-                        // Update counts
-                        updateCounts();
-                    }, 300);
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    card.classList.remove('removing');
-                    alert('Failed to delete image. Please try again.');
-                });
+                        // Show the confirmation modal
+                        const bsConfirmModal = new bootstrap.Modal(deleteConfirmModal);
+                        bsConfirmModal.show();
+                    }
+                };
             }
+            
+            // Show the modal
+            modal.show();
         });
-    }
+    });
 }
 
 /**
