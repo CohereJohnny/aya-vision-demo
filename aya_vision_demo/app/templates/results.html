@@ -4,56 +4,40 @@
 
 {% block extra_css %}
 <style>
-    .result-card {
-        transition: transform 0.2s;
-    }
-    .result-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 10px 20px rgba(0,0,0,0.1);
-    }
+    /* Result card styling overrides */
     .thumbnail {
         width: 100%;
-        height: 180px;
-        object-fit: contain;
-        border-radius: 4px 4px 0 0;
+        height: 200px;
+        object-fit: cover;
+        border-radius: 0.75rem 0.75rem 0 0;
         cursor: pointer;
-        background-color: #f8f9fa;
-        padding: 5px;
-        border-bottom: 1px solid rgba(0,0,0,0.1);
+        background-color: var(--cohere-background);
     }
     .result-true {
-        color: #28a745;
+        color: var(--cohere-success);
     }
     .result-false {
-        color: #dc3545;
+        color: var(--cohere-danger);
     }
     .result-unknown {
-        color: #6c757d;
+        color: var(--cohere-text-light);
     }
-    .summary-card {
-        margin-bottom: 30px;
-    }
-    .summary-item {
-        display: flex;
-        align-items: center;
-        margin-bottom: 10px;
-    }
-    .summary-icon {
-        font-size: 24px;
-        margin-right: 15px;
+    .summary-section {
+        margin-bottom: 2rem;
     }
     .delete-btn {
-        color: #dc3545;
+        color: var(--cohere-danger);
         cursor: pointer;
-        transition: color 0.2s;
+        transition: color 0.2s, transform 0.2s;
     }
     .delete-btn:hover {
-        color: #bd2130;
+        color: var(--cohere-danger);
+        transform: scale(1.1);
     }
     .card-actions {
         display: flex;
         justify-content: flex-end;
-        margin-top: 10px;
+        margin-top: 15px;
     }
     .image-removed {
         opacity: 0;
@@ -72,6 +56,7 @@
         max-height: 80vh;
         display: block;
         margin: 0 auto;
+        border-radius: 0.5rem;
     }
     .modal-dialog.modal-xl {
         max-width: 90%;
@@ -79,249 +64,430 @@
     .image-info {
         margin-top: 15px;
     }
+    
     .filter-sort-controls {
-        margin-left: 15px;
-        display: inline-flex;
+        display: flex;
         align-items: center;
-    }
-    .filter-sort-controls .dropdown {
-        margin-right: 10px;
+        gap: 10px;
     }
     .filter-sort-controls .btn {
         display: flex;
         align-items: center;
-    }
-    .filter-sort-controls .btn i {
-        margin-right: 5px;
-    }
-    .filter-badge {
-        margin-left: 10px;
-        font-size: 0.8rem;
+        gap: 6px;
     }
     .active-filter {
-        background-color: #0d6efd;
+        background-color: var(--cohere-accent);
         color: white;
     }
     .active-sort {
-        background-color: #0d6efd;
+        background-color: var(--cohere-accent);
         color: white;
     }
     .dropdown-item.active-option {
-        background-color: #0d6efd;
+        background-color: var(--cohere-accent);
         color: white;
-    }
-    .hidden-item {
-        display: none !important;
     }
     .filter-info {
         font-size: 0.9rem;
-        color: #6c757d;
-        margin-top: 5px;
-        margin-bottom: 15px;
+        color: var(--cohere-text-light);
+        padding: 10px 15px;
+        margin-bottom: 1.5rem;
+        background-color: rgba(255, 255, 255, 0.5);
+        border-radius: 0.5rem;
+        border: 1px solid var(--cohere-border);
+    }
+    .action-btn {
+        padding: 0.5rem 1rem;
+        font-weight: 500;
+        border-radius: 0.375rem;
+    }
+    .result-status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 10px;
+        border-radius: 1rem;
+        font-size: 0.9rem;
+        font-weight: 500;
+    }
+    .badge-success {
+        background-color: rgba(16, 185, 129, 0.1);
+        color: var(--cohere-success);
+    }
+    .badge-danger {
+        background-color: rgba(239, 68, 68, 0.1);
+        color: var(--cohere-danger);
+    }
+    .badge-secondary {
+        background-color: rgba(107, 114, 128, 0.1);
+        color: var(--cohere-text-light);
+    }
+    .enhanced-analysis-btn {
+        margin-top: 1rem;
+        background-color: var(--cohere-success);
+        border-color: var(--cohere-success);
+        color: white;
+        transition: all 0.3s ease;
+    }
+    .enhanced-analysis-btn:hover {
+        background-color: #0ea271;
+        border-color: #0ea271;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+    }
+    .upload-more-btn {
+        margin-top: 1rem;
+        background-color: var(--cohere-accent);
+        border-color: var(--cohere-accent);
+        transition: all 0.3s ease;
+    }
+    .upload-more-btn:hover {
+        background-color: #4338ca;
+        border-color: #4338ca;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(79, 70, 229, 0.2);
+    }
+    /* Custom modal styles */
+    .modal-wrapper {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1050;
+    }
+    
+    .modal-backdrop {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 1050;
+    }
+    
+    .modal-container {
+        position: relative;
+        max-width: 90%;
+        margin: 0 auto;
+        z-index: 1051;
+        background-color: #fff;
+        border-radius: 0.75rem;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+        overflow: hidden;
+    }
+    
+    .modal-content {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        background-color: #fff;
+        border-radius: 0.75rem;
+        outline: 0;
+    }
+    
+    .modal-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1.25rem 1.5rem;
+        border-bottom: 1px solid var(--cohere-border, #e5e7eb);
+        background-color: var(--cohere-background-light, #f9fafb);
+    }
+    
+    .modal-title {
+        margin: 0;
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: var(--cohere-text-dark, #111827);
+    }
+    
+    .modal-body {
+        padding: 1.5rem;
+        overflow-y: auto;
+        max-height: 80vh;
+    }
+    
+    .modal-footer {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        padding: 1.25rem 1.5rem;
+        border-top: 1px solid var(--cohere-border, #e5e7eb);
+        background-color: var(--cohere-background-light, #f9fafb);
+        gap: 0.75rem;
+    }
+    
+    .modal-footer .btn {
+        font-weight: 500;
+        padding: 0.5rem 1rem;
+        border-radius: 0.375rem;
+        transition: all 0.2s ease;
+    }
+    
+    .modal-footer .btn-secondary {
+        background-color: #f3f4f6;
+        color: #4b5563;
+        border-color: #e5e7eb;
+    }
+    
+    .modal-footer .btn-secondary:hover {
+        background-color: #e5e7eb;
+    }
+    
+    .modal-footer .btn-danger {
+        background-color: var(--cohere-danger, #ef4444);
+        border-color: var(--cohere-danger, #ef4444);
+    }
+    
+    .modal-footer .btn-danger:hover {
+        background-color: #dc2626;
+        border-color: #dc2626;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 6px rgba(220, 38, 38, 0.2);
+    }
+    
+    .btn-close {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 2rem;
+        height: 2rem;
+        padding: 0;
+        background-color: transparent;
+        border: 0;
+        border-radius: 0.375rem;
+        color: #6b7280;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+    
+    .btn-close:hover {
+        background-color: rgba(0, 0, 0, 0.05);
+    }
+    
+    .image-info {
+        margin-top: 1.5rem;
+        padding: 0 1rem;
+    }
+    
+    .image-info h4 {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin-bottom: 0.75rem;
+        color: var(--cohere-text-dark, #111827);
+        word-break: break-word;
+    }
+    
+    .full-image {
+        max-width: 100%;
+        max-height: 65vh;
+        display: block;
+        margin: 0 auto;
+        border-radius: 0.5rem;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+    
+    body.modal-open {
+        overflow: hidden;
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header bg-primary text-white">
-                <h2 class="mb-0"><i class="fas fa-chart-bar me-2"></i>Results Summary</h2>
-            </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-4">
-                        <div class="summary-item">
-                            <div class="summary-icon text-primary">
-                                <i class="fas fa-image"></i>
-                            </div>
-                            <div>
-                                <h5 class="mb-0">Total Images</h5>
-                                <p class="mb-0 fs-4" id="total-count">{{ results|length }}</p>
-                            </div>
+<div class="container">
+    <h1 class="mb-4">Analysis Results</h1>
+
+    <!-- Results Summary -->
+    <div class="card mb-4 summary-section">
+        <div class="card-body">
+            <h2 class="mb-3">Results Summary</h2>
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="summary-item">
+                        <div class="summary-icon">
+                            <i class="fas fa-image"></i>
                         </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="summary-item">
-                            <div class="summary-icon text-success">
-                                <i class="fas fa-check-circle"></i>
-                            </div>
-                            <div>
-                                <h5 class="mb-0">{{ subject }}<span id="detected-plural"></span> Detected</h5>
-                                <p class="mb-0 fs-4" id="detected-count">{{ results|selectattr('detection_result', 'equalto', true)|list|length }}</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="summary-item">
-                            <div class="summary-icon text-danger">
-                                <i class="fas fa-times-circle"></i>
-                            </div>
-                            <div>
-                                <h5 class="mb-0">No {{ subject }}<span id="not-detected-plural"></span> Detected</h5>
-                                <p class="mb-0 fs-4" id="not-detected-count">{{ results|selectattr('detection_result', 'equalto', false)|list|length }}</p>
-                            </div>
-                        </div>
+                        <div class="summary-value" id="total-count">{{ results|length }}</div>
+                        <div class="summary-label">Total Images</div>
                     </div>
                 </div>
-                <div class="row mt-3">
-                    {% set unknown_count = results|selectattr('detection_result', 'none')|list|length %}
-                    {% if unknown_count > 0 %}
-                    <div class="col-md-4">
-                        <div class="summary-item">
-                            <div class="summary-icon text-secondary">
-                                <i class="fas fa-question-circle"></i>
-                            </div>
-                            <div>
-                                <h5 class="mb-0">Unknown</h5>
-                                <p class="mb-0 fs-4" id="unknown-count">{{ unknown_count }}</p>
-                            </div>
+                <div class="col-md-4">
+                    <div class="summary-item">
+                        <div class="summary-icon">
+                            <i class="fas fa-check-circle"></i>
                         </div>
+                        <div class="summary-value" id="detected-count">{{ results|selectattr('detection_result', 'equalto', true)|list|length }}</div>
+                        <div class="summary-label">{{ subject }}<span id="detected-plural"></span> Detected</div>
                     </div>
-                    {% endif %}
+                </div>
+                <div class="col-md-4">
+                    <div class="summary-item">
+                        <div class="summary-icon">
+                            <i class="fas fa-times-circle"></i>
+                        </div>
+                        <div class="summary-value" id="not-detected-count">{{ results|selectattr('detection_result', 'equalto', false)|list|length }}</div>
+                        <div class="summary-label">No {{ subject }}<span id="not-detected-plural"></span></div>
+                    </div>
                 </div>
             </div>
+            {% set unknown_count = results|selectattr('detection_result', 'none')|list|length %}
+            {% if unknown_count > 0 %}
+            <div class="row mt-3">
+                <div class="col-md-4">
+                    <div class="summary-item">
+                        <div class="summary-icon">
+                            <i class="fas fa-question-circle"></i>
+                        </div>
+                        <div class="summary-value" id="unknown-count">{{ unknown_count }}</div>
+                        <div class="summary-label">Unknown Results</div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
         </div>
     </div>
-</div>
 
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="d-flex justify-content-between align-items-center">
-            <div class="d-flex align-items-center">
-                <h2><i class="fas fa-list me-2"></i>Detailed Results</h2>
-                <div class="filter-sort-controls">
-                    <div class="dropdown">
-                        <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="filterDropdown" data-bs-toggle="dropdown" aria-expanded="false" data-subject="{{ subject }}">
-                            <i class="fas fa-filter"></i> Filter
-                        </button>
-                        <ul class="dropdown-menu" aria-labelledby="filterDropdown">
-                            <li><a class="dropdown-item active-option" href="#" data-filter="all">All Images</a></li>
-                            <li><a class="dropdown-item" href="#" data-filter="detected">{{ subject }}<span id="filter-detected-plural"></span> Detected</a></li>
-                            <li><a class="dropdown-item" href="#" data-filter="not-detected">No {{ subject }}<span id="filter-not-detected-plural"></span></a></li>
-                            {% if unknown_count > 0 %}
-                            <li><a class="dropdown-item" href="#" data-filter="unknown">Unknown</a></li>
-                            {% endif %}
-                        </ul>
-                    </div>
-                    <div class="dropdown">
-                        <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="sortDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="fas fa-sort"></i> Sort
-                        </button>
-                        <ul class="dropdown-menu" aria-labelledby="sortDropdown">
-                            <li><a class="dropdown-item active-option" href="#" data-sort="filename-asc">Filename (A-Z)</a></li>
-                            <li><a class="dropdown-item" href="#" data-sort="filename-desc">Filename (Z-A)</a></li>
-                            <li><a class="dropdown-item" href="#" data-sort="status-asc">{{ subject }} Status (No → Yes)</a></li>
-                            <li><a class="dropdown-item" href="#" data-sort="status-desc">{{ subject }} Status (Yes → No)</a></li>
-                        </ul>
-                    </div>
+    <!-- Filtering Controls -->
+    <div class="mb-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 class="mb-0">Detailed Results</h2>
+            <div class="filter-sort-controls">
+                <div class="dropdown">
+                    <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="filterDropdown" data-bs-toggle="dropdown" aria-expanded="false" data-subject="{{ subject }}">
+                        <i class="fas fa-filter"></i> Filter
+                    </button>
+                    <ul class="dropdown-menu" aria-labelledby="filterDropdown">
+                        <li><a class="dropdown-item active-option" href="#" data-filter="all">All Images</a></li>
+                        <li><a class="dropdown-item" href="#" data-filter="detected">{{ subject }}<span id="filter-detected-plural"></span> Detected</a></li>
+                        <li><a class="dropdown-item" href="#" data-filter="not-detected">No {{ subject }}<span id="filter-not-detected-plural"></span></a></li>
+                        {% if unknown_count > 0 %}
+                        <li><a class="dropdown-item" href="#" data-filter="unknown">Unknown</a></li>
+                        {% endif %}
+                    </ul>
                 </div>
-            </div>
-            <div>
-                {% if results|selectattr('detection_result', 'equalto', true)|list|length > 0 %}
-                <a href="{{ url_for('main.enhanced_analysis') }}" class="btn btn-success me-2">
-                    <i class="fas fa-microscope me-2"></i>Enhanced Analysis
-                </a>
-                {% endif %}
-                <a href="{{ url_for('main.index') }}" class="btn btn-primary">
-                    <i class="fas fa-upload me-2"></i>Upload More Images
-                </a>
+                <div class="dropdown">
+                    <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="sortDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="fas fa-sort"></i> Sort
+                    </button>
+                    <ul class="dropdown-menu" aria-labelledby="sortDropdown">
+                        <li><a class="dropdown-item active-option" href="#" data-sort="filename-asc">Filename (A-Z)</a></li>
+                        <li><a class="dropdown-item" href="#" data-sort="filename-desc">Filename (Z-A)</a></li>
+                        <li><a class="dropdown-item" href="#" data-sort="status-asc">{{ subject }} Status (No → Yes)</a></li>
+                        <li><a class="dropdown-item" href="#" data-sort="status-desc">{{ subject }} Status (Yes → No)</a></li>
+                    </ul>
+                </div>
             </div>
         </div>
         <div id="filterInfo" class="filter-info">
             <i class="fas fa-info-circle me-2"></i>Showing all images, sorted by filename (A-Z)
         </div>
         {% if results|selectattr('detection_result', 'equalto', true)|list|length > 0 %}
-        <div class="alert alert-info mt-3">
+        <div class="alert alert-info mt-3 mb-4">
             <i class="fas fa-info-circle me-2"></i>
             <strong>Enhanced Analysis Available:</strong> You have {{ results|selectattr('detection_result', 'equalto', true)|list|length }} image(s) with detected {{ subject }}<span id="alert-plural"></span>. 
             Click the "Enhanced Analysis" button to perform a detailed analysis on these images.
         </div>
+        <div class="d-flex mb-4">
+            <a href="{{ url_for('main.enhanced_analysis') }}" class="btn enhanced-analysis-btn me-2">
+                <i class="fas fa-microscope me-2"></i>Enhanced Analysis
+            </a>
+            <a href="{{ url_for('main.index') }}" class="btn upload-more-btn">
+                <i class="fas fa-upload me-2"></i>Upload More Images
+            </a>
+        </div>
+        {% else %}
+        <div class="d-flex mb-4">
+            <a href="{{ url_for('main.index') }}" class="btn upload-more-btn">
+                <i class="fas fa-upload me-2"></i>Upload More Images
+            </a>
+        </div>
         {% endif %}
-        <hr>
     </div>
-</div>
 
-<!-- Debug Panel (only visible when debug is enabled) -->
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card debug-panel" id="filterDebugPanel">
-            <div class="card-header bg-dark text-white">
-                <h5 class="mb-0"><i class="fas fa-bug me-2"></i>Filtering and Sorting Debug</h5>
-            </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-6">
-                        <h6>Current Settings:</h6>
-                        <ul>
-                            <li><strong>Subject:</strong> <span id="debug-subject">{{ subject }}</span></li>
-                            <li><strong>Current Filter:</strong> <span id="debug-current-filter">all</span></li>
-                            <li><strong>Current Sort:</strong> <span id="debug-current-sort">filename-asc</span></li>
-                        </ul>
-                    </div>
-                    <div class="col-md-6">
-                        <h6>Actions:</h6>
-                        <button id="debug-reset-filter" class="btn btn-sm btn-warning me-2">Reset Filters</button>
-                        <button id="debug-clear-session" class="btn btn-sm btn-danger me-2">Clear Session Storage</button>
-                        <button id="debug-refresh-page" class="btn btn-sm btn-primary">Reload Page</button>
-                    </div>
+    <!-- Debug Panel (only visible when debug is enabled) -->
+    <div class="card debug-panel mb-4" id="filterDebugPanel">
+        <div class="card-header bg-dark text-white">
+            <h5 class="mb-0"><i class="fas fa-bug me-2"></i>Filtering and Sorting Debug</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <h6>Current Settings:</h6>
+                    <ul>
+                        <li><strong>Subject:</strong> <span id="debug-subject">{{ subject }}</span></li>
+                        <li><strong>Current Filter:</strong> <span id="debug-current-filter">all</span></li>
+                        <li><strong>Current Sort:</strong> <span id="debug-current-sort">filename-asc</span></li>
+                    </ul>
                 </div>
-                <hr>
-                <h6>Debug Log:</h6>
-                <div id="debug-log" class="debug-log p-2 bg-light" style="max-height: 200px; overflow-y: auto; font-family: monospace; font-size: 12px;"></div>
+                <div class="col-md-6">
+                    <h6>Actions:</h6>
+                    <button id="debug-reset-filter" class="btn btn-sm btn-warning me-2">Reset Filters</button>
+                    <button id="debug-clear-session" class="btn btn-sm btn-danger me-2">Clear Session Storage</button>
+                    <button id="debug-refresh-page" class="btn btn-sm btn-primary">Reload Page</button>
+                </div>
             </div>
+            <hr>
+            <h6>Debug Log:</h6>
+            <div id="debug-log" class="debug-log p-2 bg-light" style="max-height: 200px; overflow-y: auto; font-family: monospace; font-size: 12px;"></div>
         </div>
     </div>
-</div>
 
-<div class="row" id="results-container">
-    {% for result in results %}
-    <div class="col-md-4 mb-4 result-item" data-index="{{ loop.index0 }}" 
-         data-detection-status="{{ result.detection_result|lower if result.detection_result is not none else 'unknown' }}" 
-         data-filename="{{ result.filename }}"
-         data-subject="{{ subject }}">
-        <div class="card result-card">
-            <img src="data:image/jpeg;base64,{{ result.thumbnail }}" class="thumbnail" alt="{{ result.filename }}" 
-                 data-image="data:{{ result.mime_type }};base64,{{ result.full_image }}"
-                 data-filename="{{ result.filename }}"
-                 data-detection-status="{{ result.detection_result|string|lower if result.detection_result is not none else 'unknown' }}"
-                 data-index="{{ loop.index0 }}">
-            <div class="card-body">
-                <h5 class="card-title text-truncate" title="{{ result.filename }}">{{ result.filename }}</h5>
-                <p class="card-text">
-                    <strong>{{ subject }} Detected:</strong> 
-                    {% if result.detection_result == true %}
-                        <span class="result-true"><i class="fas fa-check-circle"></i> Yes</span>
-                    {% elif result.detection_result == false %}
-                        <span class="result-false"><i class="fas fa-times-circle"></i> No</span>
-                    {% else %}
-                        <span class="result-unknown"><i class="fas fa-question-circle"></i> Unknown</span>
+    <!-- Results Grid -->
+    <div class="row" id="results-container">
+        {% for result in results %}
+        <div class="col-md-4 mb-4 result-item" data-index="{{ loop.index0 }}" 
+             data-detection-status="{{ result.detection_result|lower if result.detection_result is not none else 'unknown' }}" 
+             data-filename="{{ result.filename }}"
+             data-subject="{{ subject }}">
+            <div class="card result-card">
+                <img src="data:image/jpeg;base64,{{ result.thumbnail }}" class="thumbnail" alt="{{ result.filename }}" 
+                     data-image="data:{{ result.mime_type }};base64,{{ result.full_image }}"
+                     data-filename="{{ result.filename }}"
+                     data-detection-status="{{ result.detection_result|string|lower if result.detection_result is not none else 'unknown' }}"
+                     data-index="{{ loop.index0 }}">
+                <div class="card-body">
+                    <h5 class="card-title text-truncate" title="{{ result.filename }}">{{ result.filename }}</h5>
+                    <p class="card-text">
+                        <strong>{{ subject }} Detected:</strong> 
+                        {% if result.detection_result == true %}
+                            <span class="result-true"><i class="fas fa-check-circle"></i> Yes</span>
+                        {% elif result.detection_result == false %}
+                            <span class="result-false"><i class="fas fa-times-circle"></i> No</span>
+                        {% else %}
+                            <span class="result-unknown"><i class="fas fa-question-circle"></i> Unknown</span>
+                        {% endif %}
+                    </p>
+                    {% if not result.success %}
+                    <p class="card-text text-danger">
+                        <i class="fas fa-exclamation-triangle"></i> Error: {{ result.error }}
+                    </p>
                     {% endif %}
-                </p>
-                {% if not result.success %}
-                <p class="card-text text-danger">
-                    <i class="fas fa-exclamation-triangle"></i> Error: {{ result.error }}
-                </p>
-                {% endif %}
-                <div class="card-actions">
-                    <button class="btn btn-sm btn-outline-danger delete-image-btn" data-index="{{ loop.index0 }}" data-filename="{{ result.filename }}">
-                        <i class="fas fa-trash-alt"></i> Delete
-                    </button>
+                    <div class="card-actions">
+                        <button class="btn btn-sm btn-outline-danger delete-image-btn" data-index="{{ loop.index0 }}" data-filename="{{ result.filename }}">
+                            <i class="fas fa-trash-alt"></i> Delete
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
+        {% endfor %}
     </div>
-    {% endfor %}
 </div>
 
 <!-- Full Image Modal -->
-<div class="modal fade" id="imageModal" tabindex="-1" aria-labelledby="imageModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-xl">
+<div class="modal-wrapper" id="customModalWrapper" style="display: none;">
+    <div class="modal-backdrop" id="customModalBackdrop"></div>
+    <div class="modal-container" role="dialog" aria-modal="true" aria-labelledby="customModalTitle">
         <div class="modal-content full-image-modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="imageModalLabel">Image Details</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h5 class="modal-title" id="customModalTitle">Image Details</h5>
+                <button type="button" class="btn-close" id="customModalClose" aria-label="Close"></button>
             </div>
             <div class="modal-body text-center">
                 <img src="" id="fullImage" class="full-image" alt="Full size image">
@@ -331,29 +497,10 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-secondary" id="customModalCloseBtn">Close</button>
                 <button type="button" class="btn btn-danger" id="modal-delete-btn">
                     <i class="fas fa-trash-alt"></i> Delete Image
                 </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Confirmation Modal -->
-<div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-labelledby="deleteConfirmModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="deleteConfirmModalLabel">Confirm Deletion</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                Are you sure you want to delete the image <span id="filename-to-delete" class="fw-bold"></span>?
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-danger" id="confirm-delete-btn">Delete</button>
             </div>
         </div>
     </div>
@@ -920,5 +1067,147 @@
             toast.remove();
         }, 3000);
     }
+    
+    // Custom modal functionality
+    document.addEventListener('DOMContentLoaded', function() {
+        // Get main modal elements
+        const customModalWrapper = document.getElementById('customModalWrapper');
+        const customModalBackdrop = document.getElementById('customModalBackdrop');
+        const customModalClose = document.getElementById('customModalClose');
+        const customModalCloseBtn = document.getElementById('customModalCloseBtn');
+        const fullImage = document.getElementById('fullImage');
+        const imageFilename = document.getElementById('imageFilename');
+        const imageFlareStatus = document.getElementById('imageFlareStatus');
+        const modalDeleteBtn = document.getElementById('modal-delete-btn');
+        
+        // Current image tracking
+        let currentImageIndex = -1;
+        let currentFilename = '';
+        
+        // Function to open image modal
+        function openImageModal() {
+            document.body.classList.add('modal-open');
+            customModalWrapper.style.display = 'flex';
+            console.log('Image modal opened');
+        }
+        
+        // Function to close image modal
+        function closeImageModal() {
+            document.body.classList.remove('modal-open');
+            customModalWrapper.style.display = 'none';
+            console.log('Image modal closed');
+        }
+        
+        // Attach event listeners for image modal
+        customModalClose.addEventListener('click', closeImageModal);
+        customModalCloseBtn.addEventListener('click', closeImageModal);
+        customModalBackdrop.addEventListener('click', closeImageModal);
+        
+        // Keyboard support (ESC to close)
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' || e.keyCode === 27) {
+                if (customModalWrapper.style.display === 'flex') {
+                    closeImageModal();
+                }
+            }
+        });
+        
+        // Add click event to all thumbnails
+        const thumbnails = document.querySelectorAll('.thumbnail');
+        thumbnails.forEach(thumbnail => {
+            thumbnail.addEventListener('click', function() {
+                const imgSrc = this.getAttribute('data-image');
+                const filename = this.getAttribute('data-filename');
+                const status = this.getAttribute('data-detection-status');
+                const index = parseInt(this.getAttribute('data-index'));
+                
+                // Set current values
+                currentImageIndex = index;
+                currentFilename = filename;
+                
+                // Set modal content
+                fullImage.src = imgSrc;
+                imageFilename.textContent = filename;
+                
+                // Set status text with appropriate icon and color
+                if (status === 'true') {
+                    imageFlareStatus.innerHTML = `<span class="result-true"><i class="fas fa-check-circle"></i> {{ subject }} Detected: Yes</span>`;
+                } else if (status === 'false') {
+                    imageFlareStatus.innerHTML = `<span class="result-false"><i class="fas fa-times-circle"></i> {{ subject }} Detected: No</span>`;
+                } else {
+                    imageFlareStatus.innerHTML = `<span class="result-unknown"><i class="fas fa-question-circle"></i> {{ subject }} Detected: Unknown</span>`;
+                }
+                
+                // Open the modal
+                openImageModal();
+            });
+        });
+        
+        // Handle delete functionality for thumbnails in the grid
+        const deleteButtons = document.querySelectorAll('.delete-image-btn');
+        deleteButtons.forEach(button => {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                
+                const index = this.getAttribute('data-index');
+                const filename = this.getAttribute('data-filename');
+                
+                if (confirm(`Are you sure you want to delete the image "${filename}"?`)) {
+                    deleteImage(index, filename);
+                }
+            });
+        });
+        
+        // Handle delete button in the modal
+        if (modalDeleteBtn) {
+            modalDeleteBtn.addEventListener('click', function() {
+                if (currentFilename && currentImageIndex >= 0) {
+                    if (confirm(`Are you sure you want to delete the image "${currentFilename}"?`)) {
+                        // Close the modal first
+                        closeImageModal();
+                        // Then delete the image
+                        deleteImage(currentImageIndex, currentFilename);
+                    }
+                }
+            });
+        }
+        
+        // Function to delete an image by index
+        function deleteImage(index, filename) {
+            // Create a fetch request to delete the image
+            fetch(`/api/delete_image/${index}`, {
+                method: 'DELETE'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Find the element to remove
+                    const itemToRemove = document.querySelector(`.result-item[data-index="${index}"]`);
+                    if (itemToRemove) {
+                        // Add removing animation
+                        itemToRemove.classList.add('removing');
+                        
+                        // Remove after animation completes
+                        setTimeout(() => {
+                            itemToRemove.remove();
+                            
+                            // Update counts
+                            updateCounts(data);
+                            
+                            // Show success message
+                            showToast(`Image "${filename}" was deleted successfully.`);
+                        }, 300);
+                    }
+                } else {
+                    // Show error message
+                    showToast(`Error: ${data.error}`);
+                }
+            })
+            .catch(error => {
+                console.error('Error deleting image:', error);
+                showToast('An error occurred while deleting the image. Please try again.');
+            });
+        }
+    });
 </script>
 {% endblock %}

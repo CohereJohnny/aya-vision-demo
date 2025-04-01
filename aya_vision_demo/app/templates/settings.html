@@ -3,23 +3,22 @@
 {% block title %}Settings - AYA Vision Detection Demo{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header bg-primary text-white">
-                <h2 class="mb-0"><i class="fas fa-cog me-2"></i>Application Settings</h2>
-            </div>
-            <div class="card-body">
+<div class="row justify-content-center">
+    <div class="col-lg-10">
+        <h1 class="mb-4">Settings</h1>
+        
+        <div class="card mb-4">
+            <div class="card-body p-4">
                 <form method="POST" action="{{ url_for('main.settings') }}">
                     {{ form.hidden_tag() }}
-                    <div class="mb-4">
-                        <h4>Detection Configuration</h4>
-                        <p class="text-muted">
+                    <div class="mb-5">
+                        <h2 class="mb-3">Detection Configuration</h2>
+                        <p class="text-muted mb-4">
                             Configure what the application will detect in images and how it will interact with the Cohere model.
                         </p>
                         
-                        <div class="mb-3">
-                            {{ form.subject.label(class="form-label fw-bold") }}
+                        <div class="mb-4">
+                            {{ form.subject.label(class="form-label") }}
                             {% if form.subject.errors %}
                                 {{ form.subject(class="form-control is-invalid") }}
                                 <div class="invalid-feedback">
@@ -30,61 +29,58 @@
                             {% else %}
                                 {{ form.subject(class="form-control") }}
                             {% endif %}
-                            <div class="form-text">
+                            <div class="form-text mt-2">
                                 The subject will be used throughout the application (e.g., "Flare Detected", "Buildings Detected").
-                                <br>
                                 This should match what you're asking the model to detect in your prompt.
                             </div>
                         </div>
                         
-                        <div class="mb-3">
-                            {{ form.initial_prompt.label(class="form-label fw-bold") }}
+                        <div class="mb-4">
+                            {{ form.initial_prompt.label(class="form-label") }}
                             {% if form.initial_prompt.errors %}
-                                {{ form.initial_prompt(class="form-control is-invalid") }}
+                                {{ form.initial_prompt(class="form-control is-invalid", rows=4) }}
                                 <div class="invalid-feedback">
                                     {% for error in form.initial_prompt.errors %}
                                         {{ error }}
                                     {% endfor %}
                                 </div>
                             {% else %}
-                                {{ form.initial_prompt(class="form-control") }}
+                                {{ form.initial_prompt(class="form-control", rows=4) }}
                             {% endif %}
-                            <div class="form-text">
+                            <div class="form-text mt-2">
                                 <strong>Stage 1: Initial Analysis</strong> - This prompt is used for binary classification of all uploaded images.
-                                <br>
+                                <br><br>
                                 The default prompt is: "Is a flare burning in this image? Answer with only 'true' or 'false'."
-                                <br>
+                                <br><br>
                                 Your prompt should be clear and specific about what to look for in the images.
-                                <br>
                                 For binary classification tasks, ask the model to respond with "true" or "false" for consistent results.
                             </div>
                         </div>
                         
-                        <div class="mb-3">
-                            {{ form.enhanced_prompt.label(class="form-label fw-bold") }}
+                        <div class="mb-4">
+                            {{ form.enhanced_prompt.label(class="form-label") }}
                             {% if form.enhanced_prompt.errors %}
-                                {{ form.enhanced_prompt(class="form-control is-invalid") }}
+                                {{ form.enhanced_prompt(class="form-control is-invalid", rows=6) }}
                                 <div class="invalid-feedback">
                                     {% for error in form.enhanced_prompt.errors %}
                                         {{ error }}
                                     {% endfor %}
                                 </div>
                             {% else %}
-                                {{ form.enhanced_prompt(class="form-control") }}
+                                {{ form.enhanced_prompt(class="form-control", rows=6) }}
                             {% endif %}
-                            <div class="form-text">
+                            <div class="form-text mt-2">
                                 <strong>Stage 2: Enhanced Analysis</strong> - This prompt is used for detailed analysis of images that were positively identified in Stage 1.
-                                <br>
+                                <br><br>
                                 The default prompt is: "Describe in detail what you see in this image, focusing on [subject]. Provide information about its appearance, surroundings, and any notable characteristics."
-                                <br>
+                                <br><br>
                                 You can use [subject] in your prompt, which will be replaced with the detection subject you specified above.
-                                <br>
                                 This prompt should ask for detailed, descriptive information rather than a binary response.
                             </div>
                         </div>
                     </div>
                     <div class="d-flex justify-content-between">
-                        <button type="submit" class="btn btn-secondary" id="reset-button" name="reset" value="reset">
+                        <button type="submit" class="btn btn-outline-secondary" id="reset-button" name="reset" value="reset">
                             <i class="fas fa-undo me-2"></i>Reset to Default
                         </button>
                         <button type="submit" class="btn btn-primary" name="submit" value="submit">

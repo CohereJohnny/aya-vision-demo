@@ -19,9 +19,9 @@ Support flexible configuration of detection subjects to demonstrate versatility.
 
 3.1  Image Upload:
 
-Users can upload a batch of images simultaneously (configurable minimum: 1 for development, 40-50 for production).
+Users can upload a batch of images simultaneously (configurable minimum: 1 for development, 10-50 for production).
 Supported file formats: JPG, PNG, and other common image formats.
-Upload method: File selection dialog (using HTML <input type="file" multiple>) and drag-and-drop functionality.
+Upload method: File selection dialog and drag-and-drop functionality.
 Error handling:
 - Handle cases where the user uploads files that are not images.
 - Handle cases where the user uploads too few or too many images. Provide clear error messages.
@@ -32,9 +32,6 @@ Display a comprehensive progress tracking system that monitors both upload and a
   - Analysis Phase (50-100%): Shows real-time analysis progress as each image is processed, with current image name and completion count.
   - Status messages update dynamically to inform users about the current stage of processing.
   - Progress bar advances incrementally as each image is analyzed, providing accurate visual feedback.
-  - Backend tracking system stores progress information for each batch with a unique progress ID.
-  - Frontend polls the server at regular intervals to retrieve the latest progress information.
-  - Handles potential network delays or processing bottlenecks with graceful UI updates.
   - Provides clear indication when processing is complete before redirecting to results page.
 
 3.2 Two-Stage Analysis Pipeline:
@@ -44,13 +41,11 @@ The application implements a two-stage analysis pipeline:
   - Stage 2: Enhanced Analysis - Detailed generative analysis of images that were positively identified in Stage 1
 
 3.2.1 Initial Analysis (Stage 1):
-Convert each uploaded image to Base64 encoding (required for the Cohere API).
-Send each encoded image to the Cohere c4ai-aya-vision-32b model.
+Send each image to the Cohere c4ai-aya-vision-32b model.
 Prompt: The prompt is configurable through the Settings page. A default prompt is provided: "Is a [subject] in this image? Answer with only 'true' or 'false'."
 Handle API responses and errors:
 - Gracefully handle potential API errors (e.g., network issues, rate limits, model errors). Display informative error messages to the user.
-- Implement retry logic (with exponential backoff) for transient errors.
-- Log all API interactions (requests and responses) for debugging and analysis.
+- Log all API interactions for debugging and analysis.
 
 3.2.2 Enhanced Analysis (Stage 2):
 Triggered by the user from the Initial Analysis results page.
@@ -93,7 +88,6 @@ The summary statistics remain unchanged when filtering to show the overall count
 Visual indicators show the active filter and sort options.
 The filter and sort state persists during the session until explicitly changed.
 A filter info text displays the current filter and sort criteria to the user.
-Filtering uses direct DOM manipulation for optimal performance.
 
 3.6 Full-Size Image Viewing:
 Users can click on any thumbnail to view the full-size image in a modal dialog.
@@ -145,48 +139,10 @@ Debug panel that displays:
   - Action buttons for resetting filters, clearing session storage, and reloading the page
 Comprehensive logging of filtering and sorting operations.
 Toggle button in the navigation bar for easy access.
-Visual verification of DOM elements and data attributes.
+Visual verification of state attributes.
 Detailed tracking of visibility states for all result items.
 
-4. Technical Design
-
-Frontend:
-HTML, CSS, JavaScript with modern ES6+ features.
-Bootstrap 5 for responsive layout and UI components.
-Font Awesome for icons and visual indicators.
-Custom JavaScript for interactive features and AJAX requests.
-Progress tracking using XMLHttpRequest for upload monitoring and fetch API for polling analysis progress.
-Direct DOM manipulation for performance-critical operations like filtering.
-Session storage for persisting user preferences.
-
-Backend:
-Python Flask framework with a modular architecture.
-Cohere Python SDK for interacting with the c4ai-aya-vision-32b model.
-Base64 encoding for image processing.
-In-memory progress tracking system with unique IDs for each batch of images.
-Progress callback mechanism for image processing functions.
-Flask Blueprints for route organization.
-WTForms for form validation and rendering.
-
-API Interaction:
-Cohere Python SDK for reliable API calls.
-Asynchronous processing to prevent blocking the main thread during batch operations.
-RESTful API endpoints for image analysis, deletion, and progress tracking.
-Progress tracking API endpoint (/api/analysis-progress/<progress_id>) for retrieving real-time status.
-
-Deployment:
-Local development environment using Flask's built-in development server.
-Production deployment considerations include:
-  - Gunicorn/uWSGI as WSGI servers
-  - Containerization (Docker) for easier deployment and portability
-  - Environment variable configuration for sensitive data
-
-Data Storage: 
-In-memory storage for image analysis results (both initial and enhanced).
-In-memory storage for progress tracking information with unique progress IDs.
-Persistent storage (using Flask's session or a simple file-based solution) for user settings.
-
-5. Prototype Scope and MVP
+4. Prototype Scope and MVP
 
 The MVP includes the following core functionality:
 - User can upload a batch of images
@@ -202,30 +158,15 @@ The MVP includes the following core functionality:
 - Debugging tools for troubleshooting filtering and sorting issues
 - Basic error handling and user feedback
 
-6. Testing
+5. Testing Requirements
 
-Unit Tests:
-- Test individual functions (e.g., Base64 encoding, API interaction, response parsing)
-- Test utility functions for image processing and data handling
-- Test form validation and error handling
-
-Integration Tests:
-- Test the flow from image upload to result display
-- Test filtering and sorting functionality
-- Test enhanced analysis workflow
-- Test settings configuration and persistence
-
-Manual Testing:
+User Acceptance Testing:
 - Test with various image sets (including edge cases)
 - Test filtering and sorting under different conditions
 - Test with different detection subjects
 - Test error handling and recovery
 
-7. Future Considerations
-
-Scalability:
-- Implement a task queue (e.g., Celery) for asynchronous image processing
-- Consider database storage for persistent results
+6. Future Considerations
 
 Enhanced Features:
 - Support for video input analysis
@@ -233,12 +174,7 @@ Enhanced Features:
 - Advanced filtering options (by confidence score, date, etc.)
 - Batch operations on filtered results
 
-Deployment:
-- Containerized deployment with Docker
-- Cloud platform hosting (AWS, GCP, Azure)
-- CI/CD pipeline for automated testing and deployment
-
-8. Success Metrics
+7. Success Metrics
 
 Usability:
 - Solution Engineers report ease of use

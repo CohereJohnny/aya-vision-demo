@@ -144,6 +144,178 @@
         background-color: #f8f9fa;
         border-bottom: 2px solid #e9ecef;
     }
+    /* Custom modal styles */
+    .modal-wrapper {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1050;
+    }
+    
+    .modal-backdrop {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 1050;
+    }
+    
+    .modal-container {
+        position: relative;
+        max-width: 90%;
+        margin: 0 auto;
+        z-index: 1051;
+        background-color: #fff;
+        border-radius: 0.75rem;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+        overflow: hidden;
+    }
+    
+    .modal-content {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        background-color: #fff;
+        border-radius: 0.75rem;
+        outline: 0;
+    }
+    
+    .modal-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1.25rem 1.5rem;
+        border-bottom: 1px solid var(--cohere-border, #e5e7eb);
+        background-color: var(--cohere-background-light, #f9fafb);
+    }
+    
+    .modal-title {
+        margin: 0;
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: var(--cohere-text-dark, #111827);
+    }
+    
+    .modal-body {
+        padding: 1.5rem;
+        overflow-y: auto;
+        max-height: 80vh;
+    }
+    
+    .modal-footer {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        padding: 1.25rem 1.5rem;
+        border-top: 1px solid var(--cohere-border, #e5e7eb);
+        background-color: var(--cohere-background-light, #f9fafb);
+        gap: 0.75rem;
+    }
+    
+    .modal-footer .btn {
+        font-weight: 500;
+        padding: 0.5rem 1rem;
+        border-radius: 0.375rem;
+        transition: all 0.2s ease;
+    }
+    
+    .modal-footer .btn-secondary {
+        background-color: #f3f4f6;
+        color: #4b5563;
+        border-color: #e5e7eb;
+    }
+    
+    .modal-footer .btn-secondary:hover {
+        background-color: #e5e7eb;
+    }
+    
+    .modal-footer .btn-danger {
+        background-color: var(--cohere-danger, #ef4444);
+        border-color: var(--cohere-danger, #ef4444);
+    }
+    
+    .modal-footer .btn-danger:hover {
+        background-color: #dc2626;
+        border-color: #dc2626;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 6px rgba(220, 38, 38, 0.2);
+    }
+    
+    .btn-close {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 2rem;
+        height: 2rem;
+        padding: 0;
+        background-color: transparent;
+        border: 0;
+        border-radius: 0.375rem;
+        color: #6b7280;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+    
+    .btn-close:hover {
+        background-color: rgba(0, 0, 0, 0.05);
+    }
+    
+    .image-info {
+        margin-top: 1.5rem;
+        padding: 0 1rem;
+    }
+    
+    .image-info h4 {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin-bottom: 0.75rem;
+        color: var(--cohere-text-dark, #111827);
+        word-break: break-word;
+    }
+    
+    .full-image {
+        max-width: 100%;
+        max-height: 65vh;
+        display: block;
+        margin: 0 auto;
+        border-radius: 0.5rem;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+    
+    #enhancedAnalysisText {
+        margin-top: 1.5rem;
+        background-color: var(--cohere-background-light, #f9fafb);
+        border: 1px solid var(--cohere-border, #e5e7eb);
+        border-radius: 0.5rem;
+        padding: 1.25rem !important;
+    }
+    
+    #enhancedAnalysisText h5 {
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        color: var(--cohere-text-dark, #111827);
+    }
+    
+    #enhancedAnalysisText .analysis-text {
+        padding: 0 !important;
+        border: none;
+        background: transparent;
+        max-height: none;
+        line-height: 1.6;
+    }
+    
+    body.modal-open {
+        overflow: hidden;
+    }
 </style>
 {% endblock %}
 
@@ -276,54 +448,27 @@
 </div>
 
 <!-- Full Image Modal -->
-<div class="modal fade" id="imageModal" tabindex="-1" aria-labelledby="imageModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-xl">
+<div class="modal-wrapper" id="customModalWrapper" style="display: none;">
+    <div class="modal-backdrop" id="customModalBackdrop"></div>
+    <div class="modal-container" role="dialog" aria-modal="true" aria-labelledby="customModalTitle">
         <div class="modal-content full-image-modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="imageModalLabel">Enhanced Analysis Details</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h5 class="modal-title" id="customModalTitle">Image Details</h5>
+                <button type="button" class="btn-close" id="customModalClose" aria-label="Close"></button>
             </div>
-            <div class="modal-body">
-                <div class="row">
-                    <div class="col-md-5">
-                        <img src="" id="fullImage" class="full-image" alt="Full size image">
-                    </div>
-                    <div class="col-md-7">
-                        <div class="image-info">
-                            <h4 id="imageFilename"></h4>
-                            <div class="mt-3">
-                                <h5><i class="fas fa-microscope me-2"></i>Enhanced Analysis:</h5>
-                                <div class="analysis-text" id="modalEnhancedAnalysis" style="max-height: 400px;">
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+            <div class="modal-body text-center">
+                <img src="" id="fullImage" class="full-image" alt="Full size image">
+                <div class="image-info mt-3">
+                    <h4 id="imageFilename"></h4>
+                    <p id="imageFlareStatus" class="mt-2 fs-5"></p>
+                    <div id="enhancedAnalysisText" class="mt-3 p-3 border rounded bg-light text-start"></div>
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-secondary" id="customModalCloseBtn">Close</button>
                 <button type="button" class="btn btn-danger" id="modal-delete-btn">
                     <i class="fas fa-trash-alt"></i> Delete Image
                 </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Confirmation Modal -->
-<div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-labelledby="deleteConfirmModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="deleteConfirmModalLabel">Confirm Deletion</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                Are you sure you want to delete the image <span id="filename-to-delete" class="fw-bold"></span>?
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-danger" id="confirm-delete-btn">Delete</button>
             </div>
         </div>
     </div>
@@ -380,33 +525,6 @@
         // Set plural markers in the UI
         document.getElementById('detected-plural').textContent = getPlural(subject);
         document.getElementById('info-plural').textContent = getPlural(subject);
-        
-        // Get the delete buttons
-        const deleteButtons = document.querySelectorAll('.delete-image-btn');
-        const deleteModalEl = document.getElementById('deleteConfirmModal');
-        // Configure delete modal options for proper cleanup
-        const deleteModalOptions = {
-            backdrop: true,
-            keyboard: true,
-            focus: true
-        };
-        const deleteModal = new bootstrap.Modal(deleteModalEl, deleteModalOptions);
-        const filenameToDelete = document.getElementById('filename-to-delete');
-        const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
-        
-        // Full image modal elements
-        const imageModalEl = document.getElementById('imageModal');
-        // Configure modal options for proper cleanup
-        const imageModalOptions = {
-            backdrop: true,
-            keyboard: true,
-            focus: true
-        };
-        const imageModal = new bootstrap.Modal(imageModalEl, imageModalOptions);
-        const fullImage = document.getElementById('fullImage');
-        const imageFilename = document.getElementById('imageFilename');
-        const modalEnhancedAnalysis = document.getElementById('modalEnhancedAnalysis');
-        const modalDeleteBtn = document.getElementById('modal-delete-btn');
         
         // Sort elements
         const sortDropdownItems = document.querySelectorAll('[data-sort]');
@@ -475,31 +593,88 @@
             });
         });
         
-        // Handle thumbnail clicks to open modal
-        document.querySelectorAll('.thumbnail').forEach(thumbnail => {
+        // Modal functionality using custom implementation
+        const customModalWrapper = document.getElementById('customModalWrapper');
+        const customModalBackdrop = document.getElementById('customModalBackdrop');
+        const customModalClose = document.getElementById('customModalClose');
+        const customModalCloseBtn = document.getElementById('customModalCloseBtn');
+        const fullImage = document.getElementById('fullImage');
+        const imageFilename = document.getElementById('imageFilename');
+        const imageFlareStatus = document.getElementById('imageFlareStatus');
+        const enhancedAnalysisText = document.getElementById('enhancedAnalysisText');
+        const modalDeleteBtn = document.getElementById('modal-delete-btn');
+        
+        // Current image tracking
+        let currentImageIndex = -1;
+        let currentFilename = '';
+        
+        // Function to open image modal
+        function openImageModal() {
+            document.body.classList.add('modal-open');
+            customModalWrapper.style.display = 'flex';
+        }
+        
+        // Function to close image modal
+        function closeImageModal() {
+            document.body.classList.remove('modal-open');
+            customModalWrapper.style.display = 'none';
+        }
+        
+        // Attach event listeners for image modal
+        customModalClose.addEventListener('click', closeImageModal);
+        customModalCloseBtn.addEventListener('click', closeImageModal);
+        customModalBackdrop.addEventListener('click', closeImageModal);
+        
+        // Keyboard support (ESC to close)
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' || e.keyCode === 27) {
+                if (customModalWrapper.style.display === 'flex') {
+                    closeImageModal();
+                }
+            }
+        });
+        
+        // Add click event to all thumbnails
+        const thumbnails = document.querySelectorAll('.thumbnail');
+        thumbnails.forEach(thumbnail => {
             thumbnail.addEventListener('click', function() {
-                const imageUrl = this.getAttribute('data-image');
+                const imgSrc = this.getAttribute('data-image');
                 const filename = this.getAttribute('data-filename');
+                const status = this.getAttribute('data-detection-status') || 'true'; // Default to true for enhanced results
                 const index = parseInt(this.getAttribute('data-index'));
                 
+                // Set current values
+                currentImageIndex = index;
+                currentFilename = filename;
+                
                 // Set modal content
-                fullImage.src = imageUrl;
+                fullImage.src = imgSrc;
                 imageFilename.textContent = filename;
                 
-                // Get enhanced analysis from the card
-                const analysisText = this.closest('.result-card').querySelector('.analysis-text').innerHTML;
-                modalEnhancedAnalysis.innerHTML = analysisText;
+                // Set status text
+                imageFlareStatus.innerHTML = `<span class="result-true"><i class="fas fa-check-circle"></i> {{ subject }} Detected: Yes</span>`;
                 
-                // Set delete button data
-                modalDeleteBtn.setAttribute('data-index', index);
-                modalDeleteBtn.setAttribute('data-filename', filename);
+                // Set enhanced analysis text - get it from the corresponding card
+                const cardElement = this.closest('.result-card');
+                if (cardElement) {
+                    const analysisElement = cardElement.querySelector('.analysis-text');
+                    if (analysisElement) {
+                        enhancedAnalysisText.innerHTML = `
+                            <h5><i class="fas fa-microscope me-2"></i>Enhanced Analysis:</h5>
+                            <div class="analysis-text p-3">${analysisElement.innerHTML}</div>
+                        `;
+                    } else {
+                        enhancedAnalysisText.innerHTML = '<div class="text-muted">No enhanced analysis available for this image.</div>';
+                    }
+                }
                 
-                // Show modal
-                imageModal.show();
+                // Open the modal
+                openImageModal();
             });
         });
         
         // Handle delete button clicks
+        const deleteButtons = document.querySelectorAll('.delete-image-btn');
         deleteButtons.forEach(button => {
             button.addEventListener('click', function(e) {
                 e.preventDefault();
@@ -507,130 +682,143 @@
                 const index = this.getAttribute('data-index');
                 const filename = this.getAttribute('data-filename');
                 
-                // Set confirmation modal content
-                filenameToDelete.textContent = filename;
-                
-                // Set confirm button data
-                confirmDeleteBtn.setAttribute('data-index', index);
-                confirmDeleteBtn.setAttribute('data-filename', filename);
-                
-                // Show confirmation modal
-                deleteModal.show();
+                if (confirm(`Are you sure you want to delete the image "${filename}"?`)) {
+                    // Send delete request to API
+                    fetch(`/api/delete_image/${index}`, {
+                        method: 'DELETE'
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            // Find the element to remove
+                            const itemToRemove = document.querySelector(`.result-item[data-index="${index}"]`);
+                            if (itemToRemove) {
+                                // Add removing animation
+                                itemToRemove.classList.add('removing');
+                                
+                                // Remove after animation completes
+                                setTimeout(() => {
+                                    itemToRemove.remove();
+                                    
+                                    // Update counts if needed
+                                    const totalCount = document.getElementById('total-count');
+                                    if (totalCount) {
+                                        const newCount = document.querySelectorAll('.result-item').length;
+                                        totalCount.textContent = newCount;
+                                    }
+                                    
+                                    // Show success message
+                                    const toast = document.createElement('div');
+                                    toast.className = 'position-fixed bottom-0 end-0 p-3';
+                                    toast.style.zIndex = '5000';
+                                    toast.innerHTML = `
+                                        <div class="toast show" role="alert" aria-live="assertive" aria-atomic="true">
+                                            <div class="toast-header">
+                                                <strong class="me-auto">Image Deleted</strong>
+                                                <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+                                            </div>
+                                            <div class="toast-body">
+                                                Image "${filename}" was deleted successfully.
+                                            </div>
+                                        </div>
+                                    `;
+                                    document.body.appendChild(toast);
+                                    
+                                    // Remove toast after 3 seconds
+                                    setTimeout(() => {
+                                        toast.remove();
+                                    }, 3000);
+                                    
+                                    // Redirect if no items left
+                                    if (document.querySelectorAll('.result-item').length === 0) {
+                                        window.location.href = "{{ url_for('main.index') }}";
+                                    }
+                                }, 300);
+                            }
+                        } else {
+                            // Show error message
+                            alert(`Error: ${data.error}`);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error deleting image:', error);
+                        alert('An error occurred while deleting the image. Please try again.');
+                    });
+                }
             });
         });
         
         // Handle modal delete button click
-        modalDeleteBtn.addEventListener('click', function() {
-            const index = this.getAttribute('data-index');
-            const filename = this.getAttribute('data-filename');
-            
-            // Set confirmation modal content
-            filenameToDelete.textContent = filename;
-            
-            // Set confirm button data
-            confirmDeleteBtn.setAttribute('data-index', index);
-            confirmDeleteBtn.setAttribute('data-filename', filename);
-            
-            // Store a flag to show delete modal after image modal is fully hidden
-            window.showDeleteModalAfterImageModalClosed = true;
-            
-            // Hide image modal
-            imageModal.hide();
-        });
-        
-        // Add event listener for when the image modal is hidden
-        imageModalEl.addEventListener('hidden.bs.modal', function () {
-            // Ensure body class is removed
-            document.body.classList.remove('modal-open');
-            
-            // Remove any leftover backdrop
-            const backdrops = document.querySelectorAll('.modal-backdrop');
-            backdrops.forEach(backdrop => backdrop.remove());
-            
-            // Reset body styles that might be added by Bootstrap
-            document.body.style.overflow = '';
-            document.body.style.paddingRight = '';
-            
-            // Check if we need to show the delete modal
-            if (window.showDeleteModalAfterImageModalClosed) {
-                window.showDeleteModalAfterImageModalClosed = false;
-                
-                // Use setTimeout to ensure the DOM has time to clean up first
-                setTimeout(() => {
-                    deleteModal.show();
-                }, 50);
-            }
-        });
-        
-        // Add event listener for when the delete confirmation modal is hidden
-        deleteModalEl.addEventListener('hidden.bs.modal', function () {
-            // Ensure body class is removed
-            document.body.classList.remove('modal-open');
-            
-            // Remove any leftover backdrop
-            const backdrops = document.querySelectorAll('.modal-backdrop');
-            backdrops.forEach(backdrop => backdrop.remove());
-            
-            // Reset body styles that might be added by Bootstrap
-            document.body.style.overflow = '';
-            document.body.style.paddingRight = '';
-        });
-        
-        // Handle confirm delete button click
-        confirmDeleteBtn.addEventListener('click', function() {
-            const index = this.getAttribute('data-index');
-            const filename = this.getAttribute('data-filename');
-            
-            // Send delete request to API
-            fetch(`/api/delete_image?result_id=${index}&enhanced=true`, {
-                method: 'DELETE',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    // Find the result item and add the removal class
-                    const resultItem = document.querySelector(`.result-item[data-index="${index}"]`);
-                    if (resultItem) {
-                        resultItem.classList.add('image-removed');
-                        
-                        // Remove the item after animation completes
-                        setTimeout(() => {
-                            resultItem.remove();
+        if (modalDeleteBtn) {
+            modalDeleteBtn.addEventListener('click', function() {
+                if (confirm(`Are you sure you want to delete the image "${currentFilename}"?`)) {
+                    // Create a fetch request to delete the image
+                    fetch(`/api/delete_image/${currentImageIndex}`, {
+                        method: 'DELETE'
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            // Close the modal
+                            closeImageModal();
                             
-                            // Update counts
-                            document.getElementById('total-count').textContent = document.querySelectorAll('.result-item').length;
-                            
-                            // If no results left, redirect to index
-                            if (document.querySelectorAll('.result-item').length === 0) {
-                                window.location.href = "{{ url_for('main.index') }}";
+                            // Find the element to remove
+                            const itemToRemove = document.querySelector(`.result-item[data-index="${currentImageIndex}"]`);
+                            if (itemToRemove) {
+                                // Add removing animation
+                                itemToRemove.classList.add('removing');
+                                
+                                // Remove after animation completes
+                                setTimeout(() => {
+                                    itemToRemove.remove();
+                                    
+                                    // Update counts if needed
+                                    const totalCount = document.getElementById('total-count');
+                                    if (totalCount) {
+                                        const newCount = document.querySelectorAll('.result-item').length;
+                                        totalCount.textContent = newCount;
+                                    }
+                                    
+                                    // Show success message
+                                    const toast = document.createElement('div');
+                                    toast.className = 'position-fixed bottom-0 end-0 p-3';
+                                    toast.style.zIndex = '5000';
+                                    toast.innerHTML = `
+                                        <div class="toast show" role="alert" aria-live="assertive" aria-atomic="true">
+                                            <div class="toast-header">
+                                                <strong class="me-auto">Image Deleted</strong>
+                                                <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+                                            </div>
+                                            <div class="toast-body">
+                                                Image "${currentFilename}" was deleted successfully.
+                                            </div>
+                                        </div>
+                                    `;
+                                    document.body.appendChild(toast);
+                                    
+                                    // Remove toast after 3 seconds
+                                    setTimeout(() => {
+                                        toast.remove();
+                                    }, 3000);
+                                    
+                                    // Redirect if no items left
+                                    if (document.querySelectorAll('.result-item').length === 0) {
+                                        window.location.href = "{{ url_for('main.index') }}";
+                                    }
+                                }, 300);
                             }
-                        }, 500);
-                    }
-                    
-                    // Hide the confirmation modal properly
-                    deleteModal.hide();
-                    
-                    // Ensure there are no remaining backdrops after modal is closed
-                    setTimeout(() => {
-                        document.body.classList.remove('modal-open');
-                        const backdrops = document.querySelectorAll('.modal-backdrop');
-                        backdrops.forEach(backdrop => backdrop.remove());
-                        document.body.style.overflow = '';
-                        document.body.style.paddingRight = '';
-                    }, 150);
-                } else {
-                    alert('Error deleting image: ' + data.error);
+                        } else {
+                            // Show error message
+                            alert(`Error: ${data.error}`);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error deleting image:', error);
+                        alert('An error occurred while deleting the image. Please try again.');
+                    });
                 }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('Error deleting image. Please try again.');
             });
-        });
+        }
         
         // Load saved sort state from sessionStorage
         const savedSort = sessionStorage.getItem('enhancedCurrentSort');
@@ -649,21 +837,6 @@
             // Apply sort
             applySort();
         }
-        
-        // Add a global click handler as a fallback to ensure page interactivity
-        // if modals aren't properly cleaned up
-        document.addEventListener('click', function(e) {
-            // If we click anywhere and there's no visible modal but body still has modal-open class
-            const anyVisibleModal = document.querySelector('.modal.show');
-            if (!anyVisibleModal && document.body.classList.contains('modal-open')) {
-                console.log('Forcing modal cleanup');
-                document.body.classList.remove('modal-open');
-                const backdrops = document.querySelectorAll('.modal-backdrop');
-                backdrops.forEach(backdrop => backdrop.remove());
-                document.body.style.overflow = '';
-                document.body.style.paddingRight = '';
-            }
-        });
     });
 </script>
 {% endblock %} 
