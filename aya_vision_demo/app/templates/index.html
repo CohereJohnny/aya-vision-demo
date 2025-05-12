@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}AYA Vision Detection Demo{% endblock %}
+{% block title %}{{ DEMO_TITLE }}{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -166,12 +166,12 @@
 {% block content %}
 <div class="row justify-content-center">
     <div class="col-lg-10">
-        <h1 class="mb-4">AYA Vision Detection Demo</h1>
+        <h1 class="mb-4">{{ DEMO_TITLE }}</h1>
         
         <div class="card mb-4">
             <div class="card-body">
                 <p class="lead mb-4">
-                    This demo showcases the capabilities of AYA Vision for detecting objects or features in images.
+                    {{ DEMO_DESCRIPTION|safe }}
                     Upload your images to analyze them for the presence of <strong>{{ subject }}</strong>.
                 </p>
                 

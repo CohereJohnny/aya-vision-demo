@@ -23,6 +23,7 @@ def setup_client() -> cohere.ClientV2:
         cohere.ClientV2: Configured Cohere client
     """
     client = cohere.ClientV2(
+        base_url="https://stg.api.cohere.ai",
         api_key=os.getenv("COHERE_API_KEY"),
         log_warning_experimental_features=False
     )
@@ -334,7 +335,7 @@ def process_enhanced_analysis(
                 mime_type=mime_type,
                 model_name=model_name,
                 prompt=prompt,
-                temperature=0.7  # Higher temperature for more creative responses
+                temperature=0.3  # Higher temperature for more creative responses
             )
             
             # Add to results

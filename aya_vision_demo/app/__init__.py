@@ -39,6 +39,15 @@ def create_app(config_name=None):
     
     # Register error handlers
     register_error_handlers(app)
+
+    # Inject demo metadata into all templates
+    @app.context_processor
+    def inject_demo_metadata():
+        return dict(
+            DEMO_TITLE=app.config.get('DEMO_TITLE'),
+            DEMO_DESCRIPTION=app.config.get('DEMO_DESCRIPTION'),
+            DEMO_FOOTER=app.config.get('DEMO_FOOTER'),
+        )
     
     return app
 
