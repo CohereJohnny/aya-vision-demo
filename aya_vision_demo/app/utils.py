@@ -7,6 +7,7 @@ from typing import Dict, List, Tuple, Optional, Any, Callable
 from PIL import Image
 import cohere
 from werkzeug.utils import secure_filename
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Configure logging
 logging.basicConfig(
@@ -234,60 +235,58 @@ def process_image_batch(
     api_key: str, 
     model_name: str, 
     prompt: str,
-    progress_callback: Optional[Callable[[int, str], None]] = None
+    progress_callback: Optional[Callable[[int, str], None]] = None,
+    max_workers: int = 8
 ) -> List[Dict]:
     """
-    Process a batch of images with the Cohere API for initial binary classification.
-    
-    Args:
-        images: List of image dictionaries with filename, data, and mime_type
-        api_key: Cohere API key
-        model_name: Name of the Cohere model to use
-        prompt: Prompt to send to the model
-        progress_callback: Optional callback function to report progress
-        
-    Returns:
-        List[Dict]: List of results with original image info and analysis results
+    Process a batch of images with the Cohere API for initial binary classification in parallel.
     """
-    results = []
-    
-    for i, image in enumerate(images):
-        # Create a thumbnail
-        thumbnail = create_thumbnail(image['data'])
-        
-        # Encode the image to base64
-        base64_image, mime_type = encode_image_to_base64(io.BytesIO(image['data']))
-        
-        # Analyze the image
-        analysis_result = analyze_image_with_cohere(
-            api_key=api_key,
-            base64_image=base64_image,
-            mime_type=mime_type,
-            model_name=model_name,
-            prompt=prompt
-        )
-        
-        # Parse the result
-        detection_result = None
-        if analysis_result['success']:
-            detection_result = parse_detection_result(analysis_result['response'])
-        
-        # Add to results
-        results.append({
-            'filename': image['filename'],
-            'thumbnail': thumbnail,
-            'full_image': base64_image,
-            'mime_type': mime_type,
-            'detection_result': detection_result,
-            'success': analysis_result['success'],
-            'error': analysis_result.get('error', None),
-            'raw_response': analysis_result.get('raw_response', None)
-        })
-        
-        # Report progress if callback is provided - MOVED HERE to update after processing
+    def process_single(i_image):
+        i, image = i_image
+        try:
+            thumbnail = create_thumbnail(image['data'])
+            base64_image, mime_type = encode_image_to_base64(io.BytesIO(image['data']))
+            analysis_result = analyze_image_with_cohere(
+                api_key=api_key,
+                base64_image=base64_image,
+                mime_type=mime_type,
+                model_name=model_name,
+                prompt=prompt
+            )
+            detection_result = None
+            if analysis_result['success']:
+                detection_result = parse_detection_result(analysis_result['response'])
+            result = {
+                'filename': image['filename'],
+                'thumbnail': thumbnail,
+                'full_image': base64_image,
+                'mime_type': mime_type,
+                'detection_result': detection_result,
+                'success': analysis_result['success'],
+                'error': analysis_result.get('error', None),
+                'raw_response': analysis_result.get('raw_response', None)
+            }
+        except Exception as e:
+            result = {
+                'filename': image.get('filename', ''),
+                'thumbnail': None,
+                'full_image': None,
+                'mime_type': None,
+                'detection_result': None,
+                'success': False,
+                'error': str(e),
+                'raw_response': None
+            }
         if progress_callback:
-            progress_callback(i, image['filename'])
-    
+            progress_callback(i, image.get('filename', ''))
+        return (i, result)
+
+    results = [None] * len(images)
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = [executor.submit(process_single, (i, img)) for i, img in enumerate(images)]
+        for future in as_completed(futures):
+            i, result = future.result()
+            results[i] = result
     return results
 
 def process_enhanced_analysis(
@@ -295,92 +294,54 @@ def process_enhanced_analysis(
     api_key: str, 
     model_name: str, 
     prompt: str,
-    progress_callback: Optional[Callable[[int, str], None]] = None
+    progress_callback: Optional[Callable[[int, str], None]] = None,
+    max_workers: int = 8
 ) -> List[Dict]:
     """
-    Process a batch of images with the Cohere API for enhanced detailed analysis.
-    This function is used for the second stage of analysis on positively identified images.
-    
-    Args:
-        images: List of image dictionaries from the initial analysis results
-        api_key: Cohere API key
-        model_name: Name of the Cohere model to use
-        prompt: Detailed analysis prompt to send to the model
-        progress_callback: Optional callback function to report progress
-        
-    Returns:
-        List[Dict]: List of results with original image info and enhanced analysis results
+    Process a batch of images with the Cohere API for enhanced detailed analysis in parallel.
     """
-    enhanced_results = []
-    total_images = len(images)
-    
-    # Log the start of processing with callback info
-    logger.info(f"Starting enhanced analysis for {total_images} images")
-    logger.info(f"Progress callback provided: {progress_callback is not None}")
-    
-    for i, image in enumerate(images):
-        # Log current image processing
-        current_image = i + 1
-        logger.info(f"Processing image {current_image}/{total_images}: {image['filename']}")
-        
+    def process_single(i_image):
+        i, image = i_image
         try:
-            # We already have the base64 image from the initial analysis
             base64_image = image['full_image']
             mime_type = image['mime_type']
-            
-            # Analyze the image with the enhanced prompt
             analysis_result = analyze_image_with_cohere(
                 api_key=api_key,
                 base64_image=base64_image,
                 mime_type=mime_type,
                 model_name=model_name,
                 prompt=prompt,
-                temperature=0.3  # Higher temperature for more creative responses
+                temperature=0.3
             )
-            
-            # Add to results
-            enhanced_results.append({
+            result = {
                 'filename': image['filename'],
                 'thumbnail': image['thumbnail'],
                 'full_image': base64_image,
                 'mime_type': mime_type,
-                'detection_result': image['detection_result'],  # Keep the original detection result
+                'detection_result': image['detection_result'],
                 'enhanced_analysis': analysis_result['response'] if analysis_result['success'] else None,
                 'success': analysis_result['success'],
                 'error': analysis_result.get('error', None),
                 'raw_response': analysis_result.get('raw_response', None)
-            })
-            
-            # Report progress if callback is provided - AFTER processing each image
-            if progress_callback:
-                logger.info(f"Calling progress callback for index {i}, file {image['filename']}")
-                try:
-                    progress_callback(i, image['filename'])
-                    logger.info(f"Progress callback successfully called")
-                except Exception as callback_error:
-                    logger.error(f"Error in progress callback: {str(callback_error)}")
-            else:
-                logger.info(f"No progress callback available to report progress")
-        
+            }
         except Exception as e:
-            logger.error(f"Error processing enhanced analysis for image {image['filename']}: {str(e)}")
-            # Add a failed result to the list
-            enhanced_results.append({
-                'filename': image['filename'],
+            result = {
+                'filename': image.get('filename', ''),
                 'thumbnail': image.get('thumbnail', None),
                 'detection_result': image.get('detection_result', None),
                 'enhanced_analysis': None,
                 'success': False,
                 'error': str(e),
                 'raw_response': None
-            })
-            
-            # Still call the progress callback even if there was an error
-            if progress_callback:
-                try:
-                    progress_callback(i, image['filename'])
-                except Exception as callback_error:
-                    logger.error(f"Error in progress callback after processing error: {str(callback_error)}")
-    
-    logger.info(f"Completed enhanced analysis for {len(enhanced_results)}/{total_images} images")
-    return enhanced_results
+            }
+        if progress_callback:
+            progress_callback(i, image.get('filename', ''))
+        return (i, result)
+
+    results = [None] * len(images)
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = [executor.submit(process_single, (i, img)) for i, img in enumerate(images)]
+        for future in as_completed(futures):
+            i, result = future.result()
+            results[i] = result
+    return results
