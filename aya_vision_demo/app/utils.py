@@ -236,7 +236,7 @@ def process_image_batch(
     model_name: str, 
     prompt: str,
     progress_callback: Optional[Callable[[int, str], None]] = None,
-    max_workers: int = 8
+    max_workers: int = 4
 ) -> List[Dict]:
     """
     Process a batch of images with the Cohere API for initial binary classification in parallel.
@@ -295,7 +295,7 @@ def process_enhanced_analysis(
     model_name: str, 
     prompt: str,
     progress_callback: Optional[Callable[[int, str], None]] = None,
-    max_workers: int = 8
+    max_workers: int = 4
 ) -> List[Dict]:
     """
     Process a batch of images with the Cohere API for enhanced detailed analysis in parallel.

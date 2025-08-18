@@ -12,7 +12,7 @@ class Config:
     UPLOAD_EXTENSIONS = ['.jpg', '.jpeg', '.png']
     MIN_IMAGES = 1  # For development, we'll start with 1, but the PRD specifies 40-50
     MAX_IMAGES = 50
-    MODEL_NAME = 'command-a-vision-epsilon'
+    MODEL_NAME = 'command-a-vision-07-2025'
     PROMPT = "Is a flare burning in this image? Answer with only 'true' or 'false'."
     
     # Logging configuration
@@ -21,6 +21,9 @@ class Config:
     DEMO_TITLE = os.environ.get('DEMO_TITLE', 'Cohere Vision Demo')
     DEMO_DESCRIPTION = os.environ.get('DEMO_DESCRIPTION', "A demonstration of object detection capabilities using Cohere's command-a-vision-epsilon model.")
     DEMO_FOOTER = os.environ.get('DEMO_FOOTER', "Powered by <a href='https://cohere.com/' target='_blank' class='cohere-link'>Cohere</a>")
+    
+    # Maximum number of threads for parallel image processing
+    MAX_WORKERS = int(os.environ.get('MAX_WORKERS', 8))
     
 class DevelopmentConfig(Config):
     """Development configuration."""

@@ -545,7 +545,8 @@ def process_image_batch_background(app, images, api_key, model_name, prompt, pro
                 api_key=api_key,
                 model_name=model_name,
                 prompt=prompt,
-                progress_callback=update_progress
+                progress_callback=update_progress,
+                max_workers=current_app.config.get('MAX_WORKERS', 8)
             )
             
             # Log what we got back
@@ -739,7 +740,8 @@ def api_analyze():
             images=valid_files,
             api_key=current_app.config['COHERE_API_KEY'],
             model_name=current_app.config['MODEL_NAME'],
-            prompt=custom_prompt
+            prompt=custom_prompt,
+            max_workers=current_app.config.get('MAX_WORKERS', 8)
         )
         
         # Log processing completion
@@ -810,7 +812,8 @@ def api_enhanced_analyze():
             images=positive_results,
             api_key=current_app.config['COHERE_API_KEY'],
             model_name=current_app.config['MODEL_NAME'],
-            prompt=custom_prompt
+            prompt=custom_prompt,
+            max_workers=current_app.config.get('MAX_WORKERS', 8)
         )
         
         # Log processing completion
@@ -1299,7 +1302,8 @@ def process_enhanced_analysis_background(app, images, api_key, model_name, promp
                 api_key=api_key,
                 model_name=model_name,
                 prompt=prompt,
-                progress_callback=update_progress
+                progress_callback=update_progress,
+                max_workers=current_app.config.get('MAX_WORKERS', 8)
             )
             
             # Log what we got back
